@@ -391,7 +391,7 @@ def health(c):
         lag = check_replica_status(row, c['max_lag_seconds'])
         m.require(row.get('Master_Host') == c['primary_hostname'] and row.get('Master_User') == c['replication_user']
                   and row.get('Master_Server_Id') == str(c['peer_server_id']), 'Replica is connected to the wrong primary/account')
-        age = database('SELECT UNIX_TIMESTAMP()-updated_at FROM postfixadmin.eric_replication_heartbeat WHERE id=1;').strip()
+        age = database('SELECT CAST(UNIX_TIMESTAMP() AS SIGNED)-CAST(updated_at AS SIGNED) FROM postfixadmin.eric_replication_heartbeat WHERE id=1;').strip()
         m.require(re.fullmatch(r'-?[0-9]+', age) and -30 <= int(age) <= c['max_lag_seconds'], 'Replication heartbeat is stale or clocks are unsynchronized')
         result = {'healthy': True, 'heartbeat_age_seconds': int(age), 'role': 'replica', 'checked_at': time.time(), 'lag_seconds': lag, 'tls': True, 'read_only': True}
     m.atomic(m.STATE / 'replication-health.json', json.dumps(result) + '\n')

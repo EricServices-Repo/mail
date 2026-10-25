@@ -30,7 +30,11 @@ class MariaDBIntegration(unittest.TestCase):
         for _ in range(90):
             p = subprocess.run(['docker', 'exec', node, 'mariadb-admin', '--socket=/var/lib/mysql/mysql.sock', '--user=root', 'ping'],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            if not p.returncode: return
+            process = subprocess.run(['docker', 'exec', node, 'cat', '/proc/1/comm'],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=False)
+            # The image starts a temporary bootstrap server first; socket ping alone
+            # would seed that server and lose START SLAVE on its planned shutdown.
+            if not p.returncode and process.stdout.strip() in ('mariadbd', 'mysqld'): return
             time.sleep(1)
         logs = subprocess.run(['docker', 'logs', node], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False).stdout
         self.fail('Isolated MariaDB did not become ready: ' + logs[-4000:].replace('a' * 64, '[redacted]'))

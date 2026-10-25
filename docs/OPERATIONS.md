@@ -51,3 +51,14 @@ Automatic live restore, database down-migrations, split-brain promotion and mult
 ## Incident response
 
 Restrict ingress (`close`), disable affected accounts, preserve relevant logs/snapshots and assess credential/key exposure. Rotate known/default/reused secrets from any legacy deployment, including independent database credentials and webmail session keys, with a coordinated change. Logging passwords is prohibited; review historical log disclosure if legacy debugging was used. Rebuild from a trusted release if host integrity is uncertain. Apply retention rules to sensitive incident evidence and report through your organization's process.
+
+
+## Postscreen at the MX boundary
+
+Public port 25 passes through Postscreen before the normal SMTP daemon. It enforces pre-greeting discipline and caches successful clients for a day. Authenticated submission on 587 and the outbound SMTP transport remain separate. TLS negotiation uses the configured MX TLS policy and tlsproxy service.
+
+DNS blocklists are deliberately empty until an operator chooses an authorized resolver/service and evaluates its terms and false positives. Deep post-greeting tests are disabled: they require legitimate clients to reconnect and can harm rotating sender pools. This default does not replace Rspamd content scanning, recipient checks or relay restrictions.
+
+On staging, use a fresh test source address (not loopback or a cached address), send EHLO before the final 220 banner and verify SMTP delivery attempts are rejected. Then test a well-behaved fresh client through greeting, EHLO, STARTTLS and RCPT; verify normal delivery and repeat connection cache hits. Check `postfix/postscreen` PASS/PREGREET records. Run the existing external probe from IPv4, IPv6 and LAN test sources and verify submission still requires TLS and authentication. Localhost is intentionally trusted by Postscreen and cannot demonstrate external screening. Do not delete a live cache or run abusive probes against production.
+
+Source: [Postfix 2.8–3.5 Postscreen guidance](https://www.postfix.org/POSTSCREEN_3_5_README.html).

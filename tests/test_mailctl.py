@@ -239,4 +239,26 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(result[1], 'a' * 24)
 
 
+    def test_postscreen_screens_only_mx_and_preserves_submission(self):
+        out = self.root / 'render'; m.render(self.config(), self.s, out)
+        master = (out / 'etc/postfix/master.cf').read_text()
+        services = {}
+        for line in master.splitlines():
+            if line and not line.startswith(('#', ' ')):
+                fields = line.split()
+                services[(fields[0], fields[1])] = fields[-1]
+        self.assertEqual(services[('smtp', 'inet')], 'postscreen')
+        self.assertEqual(services[('smtpd', 'pass')], 'smtpd')
+        self.assertEqual(services[('tlsproxy', 'unix')], 'tlsproxy')
+        self.assertEqual(services[('dnsblog', 'unix')], 'dnsblog')
+        self.assertEqual(services[('submission', 'inet')], 'smtpd')
+        self.assertEqual(services[('smtp', 'unix')], 'smtp')
+        main = (out / 'etc/postfix/main.cf').read_text()
+        self.assertIn('postscreen_greet_action = enforce', main)
+        self.assertIn('postscreen_dnsbl_sites =\n', main)
+        for test in ('pipelining', 'non_smtp_command', 'bare_newline'):
+            self.assertIn('postscreen_' + test + '_enable = no', main)
+        self.assertIn('postscreen_tls_security_level = $smtpd_tls_security_level', main)
+
+
 if __name__ == '__main__': unittest.main()

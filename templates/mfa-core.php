@@ -43,8 +43,13 @@ function mail_mfa_active(PDO $db,string $user): bool {
     $q=$db->prepare('SELECT active FROM mail_account_status WHERE username=?'); $q->execute([$user]);
     return $q->fetchColumn()==1;
 }
-function mail_mfa_verify(PDO $db,string $user,string $code): bool {
-    $db->beginTransaction();
+function mail_mfa_session_valid(PDO $db,string $user,string $version): bool {
+    if (!mail_mfa_active($db,$user) || !preg_match('/^[a-f0-9]{64}$/D',$version)) { return false; }
+    $q=$db->prepare('SELECT seed FROM mail_mfa WHERE username=?');$q->execute([$user]);$seed=$q->fetchColumn();
+    return is_string($seed) && hash_equals(hash('sha256',$seed),$version);
+}
+function mail_mfa_verify(PDO $db,string $user,string $code,?string &$version=null): bool {
+    $version=null; $db->beginTransaction();
     try {
         $q=$db->prepare('SELECT * FROM mail_mfa WHERE username=? FOR UPDATE');$q->execute([$user]);$row=$q->fetch(PDO::FETCH_ASSOC);
         $now=time();
@@ -57,6 +62,7 @@ function mail_mfa_verify(PDO $db,string $user,string $code): bool {
         $fail=$ok?0:((int)$row['failures']+1);
         $q=$db->prepare('UPDATE mail_mfa SET last_counter=?, recovery=?, failures=?, locked_until=? WHERE username=?');
         $q->execute([$counter??$row['last_counter'],json_encode(array_values($recovery)),$fail,$fail>=5?$now+600:0,$user]);
+        if ($ok) { $version=hash('sha256',$row['seed']); }
         $db->commit();return $ok;
     } catch (Throwable $e) { if ($db->inTransaction()) { $db->rollBack(); } throw $e; }
 }

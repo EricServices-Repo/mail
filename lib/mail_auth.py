@@ -18,6 +18,9 @@ def main():
         m.require(a.id and re.fullmatch('[a-f0-9]{24}',a.id),'Device ID required');s['id']=a.id
     with m.lock():
         m.run(['php',str(m.ROOT/'templates/mfa-admin.php')],data=json.dumps(s))
+        m.run(['logger','-p','authpriv.notice','-t','eric-mail','--','mailbox-'+a.operation+':'+a.address])
         if a.operation in ('enroll','revoke','suspend'):m.run(['doveadm','kick',a.address])
     if result:print(json.dumps(result,indent=2))
-if __name__=='__main__':main()
+if __name__=='__main__':
+    try:main()
+    except (m.MailError,OSError,ValueError):raise SystemExit('Mailbox security operation failed; inspect restricted service logs')

@@ -7,3 +7,9 @@ Webmail requires the mailbox password plus TOTP or a one-use recovery code befor
 For external IMAP/SMTP clients, issue a unique expiring credential: `mail_auth.py device --address user@example.com --label Thunderbird --days 90`. Configure the exact returned username (`address#device-id`) and random password; the canonical mailbox identity is returned by Dovecot so paths/sender ownership stay unchanged. Primary mailbox passwords are accepted only from loopback for the trusted webmail backend, whose TLS peer name remains verified. Device passwords are single-factor bearer credentials, not MFA. Revoke with `revoke --address ... --id ...`; all active IMAP sessions for that mailbox are kicked. `suspend` disables login/submission and revokes all device credentials.
 
 There is no public enrollment/reset endpoint. Administrator-mediated enrollment is deliberately conservative. The web tier remains a trusted component; restrict its egress and local access. Test the full Roundcube form/session flow, clock skew, replay, lockout, recovery consumption, client credentials, revocation and suspension on the supported Rocky host before production activation. Do not interpret PHP lint or pure TOTP vectors as complete browser/IMAP acceptance.
+
+Web sessions are bound to the enrollment seed version and account identity. Resetting
+enrollment invalidates existing web sessions on their next request; the short-lived
+pending login state is cleared on every attempt and cannot be reused across accounts.
+Administrative enrollment/device/revocation/suspension actions emit authpriv audit
+events without enrollment seeds, recovery codes or device passwords.

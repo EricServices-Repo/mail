@@ -200,9 +200,15 @@ def rotate_recover(use_new):
         audit('credential-rotation-recovered');journal.unlink()
 
 
+def profile_runtime():
+    installed=m.read_json(m.STATE/'installed.json')
+    m.require(installed.get('release')==m.source_digest(),'Deploy this exact reviewed release before enabling profiles')
+    return m.runtime_install()
+
+
 def enable_checks():
     with m.lock():
-        m.runtime_install()
+        profile_runtime()
         m.atomic(Path('/etc/systemd/system/eric-mail-advisories.service'),'''[Unit]
 Description=Check vendor and dependency security advisories
 After=network-online.target

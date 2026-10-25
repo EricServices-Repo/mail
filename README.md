@@ -67,3 +67,15 @@ See [SECURITY.md](SECURITY.md) for reporting, patch policy and deployment limita
 ## Optional minimal SQL replica
 
 For a peer-restricted, mutually authenticated, read-only MariaDB replica without a web/mail stack, see [SQL disaster-recovery replication](docs/REPLICATION.md). This does not provide mailbox replication, a backup MX or automatic failover; independent offsite backups remain mandatory.
+
+
+## Additional security profiles and acceptance
+
+See [security profiles](docs/SECURITY-PROFILES.md) for malware quarantine, PHP-worker
+network confinement, DNS/transport readiness, DKIM rotation, independent delivery
+and audit, advisory/SBOM/integrity checks, signed artifacts and credential rotation.
+Deploy the exact reviewed release before enabling its profiles. Public activation
+requires recent evidence of mailbox MFA revocation, scanner failure/quarantine,
+web egress denial, independent monitoring/audit, advisory/integrity/rotation,
+durable queue recovery and domain readiness, in addition to the original gates.
+The example evidence intentionally defaults every check to false.

@@ -32,13 +32,15 @@ def rules(c, uids, existing=False):
 def apply(path, persist=True):
     c=policy(path)
     uids={name:pwd.getpwnam(name).pw_uid for name in ('roundcube','postfixadmin')}
+    if persist:
+        from security_ops import profile_runtime
+        profile_runtime()
     result=m.subprocess.run(['nft','list','table','inet','eric_mail_web'],stdout=m.subprocess.DEVNULL,stderr=m.subprocess.DEVNULL)
     text=rules(c,uids,result.returncode==0)
     m.run(['nft','--check','--file','-'],data=text)
     m.run(['nft','--file','-'],data=text)  # one atomic transaction; leaves firewalld tables alone
     if persist:
         m.atomic(m.ETC/'web-egress.json',json.dumps(c)+'\n')
-        m.runtime_install()
         unit='''[Unit]
 Description=Constrain Eric Mail web workers
 After=firewalld.service

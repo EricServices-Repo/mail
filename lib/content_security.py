@@ -47,8 +47,9 @@ def audit(event, identifier):
 def enable():
     with m.lock():
         m.host_check()
+        from security_ops import profile_runtime
+        profile_runtime()
         m.run(['dnf', '-y', '--setopt=gpgcheck=1', '--setopt=*.gpgcheck=1', '--setopt=localpkg_gpgcheck=1', 'install', 'clamav', 'clamav-update', 'clamd'])
-        m.runtime_install()
         files = {
             '/etc/clamd.d/eric-mail.conf': CLAMD,
             '/etc/freshclam.conf': 'DatabaseDirectory /var/lib/clamav\nDatabaseOwner clamupdate\nDatabaseMirror database.clamav.net\n',

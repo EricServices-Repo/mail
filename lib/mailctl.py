@@ -821,7 +821,10 @@ EVIDENCE = {'external_ipv4_relay_rejected', 'external_ipv6_relay_rejected', 'lan
             'inbound_delivery', 'submission_sender_ownership', 'imap_cleartext_rejected',
             'tls_policy', 'admin_mfa_and_mtls', 'protected_web_paths', 'dkim_spf_dmarc',
             'filter_outage_defers', 'rate_limits', 'certificate_renewal', 'restore_drill',
-            'alert_delivery', 'reboot', 'selinux_enforcing', 'upgrade_rollback'}
+            'alert_delivery', 'reboot', 'selinux_enforcing', 'upgrade_rollback',
+            'mailbox_mfa_enrollment_revocation', 'malware_quarantine_outage', 'web_worker_egress',
+            'independent_delivery_audit', 'advisories_integrity_rotation',
+            'durable_queue_recovery', 'domain_transport_readiness'}
 
 
 def activate(c, evidence):
@@ -838,6 +841,7 @@ def activate(c, evidence):
         health(c)
         # Evidence is an accountable operator attestation, never an automatic assertion of remote test success.
         atomic(STATE / 'release-evidence.json', json.dumps(proof, indent=2) + '\n')
+        run(['logger','-p','authpriv.notice','-t','eric-mail','--','public-activation:'+fingerprint(c)])
         firewall(c, True)
         atomic(STATE / 'published.json', json.dumps({'published_at': time.time(), 'fingerprint': fingerprint(c)}) + '\n')
         print('Public ingress enabled. Monitor external delivery and authentication.')

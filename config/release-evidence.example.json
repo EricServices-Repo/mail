@@ -20,7 +20,14 @@
     "selinux_enforcing": false,
     "submission_sender_ownership": false,
     "tls_policy": false,
-    "upgrade_rollback": false
+    "upgrade_rollback": false,
+    "mailbox_mfa_enrollment_revocation": false,
+    "malware_quarantine_outage": false,
+    "web_worker_egress": false,
+    "independent_delivery_audit": false,
+    "advisories_integrity_rotation": false,
+    "durable_queue_recovery": false,
+    "domain_transport_readiness": false
   },
   "release": "REPLACE_WITH_INSTALLED_JSON_RELEASE"
 }

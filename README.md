@@ -100,12 +100,12 @@ legacy installations need a planned migration rather than an in-place rerun.
 git clone https://github.com/EricServices-Repo/mail.git
 cd mail
 # Select and verify the reviewed revision/release before running its scripts.
-cp config/site.example.json site.json
-chmod 600 site.json
+# For file-based configuration, copy config/site.example.json to a private site.json.
 ```
 
-Edit all site-specific fields, including domains, networks, certificates, archive
-paths/digests, backup environment and alert command. Preview the configuration:
+If using file-based configuration, copy `config/site.example.json` to `site.json`,
+set mode `0600`, and edit its site-specific fields. Interactive installation below
+collects those settings for you. A prepared file can also be previewed offline:
 
 ```bash
 bash install.sh init-secrets --output secrets.json
@@ -117,17 +117,47 @@ must not be committed or copied over an established host's credentials.
 
 ### Deploy on the prepared host
 
-Transfer the reviewed release and site configuration to the target. With the
-configuration at `/root/site.json`, run:
+You can supply JSON or answer questions in the Bash installer.
+
+**Interactive installation — no JSON file required:**
+
+```bash
+sudo bash install.sh
+```
+
+The installer prompts for hostnames, domains, management networks, certificates,
+verified application archives/hashes, backups, alerts and limits. It validates each
+answer, lets you choose a configuration filename (default `/root/site.json`), saves
+it with mode `0600`, then starts deployment. Blank answers use displayed defaults;
+required values must be entered. Existing files are never overwritten. Ctrl-C or
+end-of-input cancels setup before deployment.
+
+Certificates, client CA/CRL, reviewed package repositories, application archives,
+backup access and the notification executable still need to be prepared; answering
+the questions does not create those external prerequisites. Passwords are generated
+by provisioning rather than requested in this questionnaire.
+
+**Installation with an existing JSON file — no prompts:**
 
 ```bash
 sudo bash install.sh --config /root/site.json
 ```
 
-With the prepared configuration already at `/etc/eric-mail/site.json`, simply run
-`sudo bash install.sh`. Use `bash install.sh --help` to list installation and
-operations commands, or `bash install.sh mailbox-mfa --help` for feature help.
-The complete checkout/release is required alongside `install.sh`.
+For repeat deployments, explicitly pass the saved configuration, for example
+`sudo bash install.sh deploy --config /etc/eric-mail/site.json`. A missing or invalid
+explicit file is an error, not a request to silently switch to interactive setup.
+Unattended execution must supply `--config`; without a terminal it fails clearly.
+
+To collect and validate answers without installing anything:
+
+```bash
+bash install.sh configure --output "$PWD/site.json"
+```
+
+Choose a private, non-shared directory owned by the invoking user. Use
+`bash install.sh --help` to list commands, or
+`bash install.sh mailbox-mfa --help` for feature help. The complete checkout/release
+is required alongside `install.sh`.
 
 The installer generates persistent credentials under `/etc/eric-mail/`, installs
 its managed runtime under `/opt/eric-mail/current`, validates services and takes an
@@ -137,8 +167,9 @@ release workflow.
 
 ## Variables and configuration
 
-Settings now live in [config/site.example.json](config/site.example.json), copied
-and edited as a private `site.json` file, rather than shell variables in the installer.
+Settings live in a private `site.json`, generated from the Bash questionnaire or
+copied and edited from [config/site.example.json](config/site.example.json), rather
+than shell variables in the installer.
 
 - `hostname` and `admin_hostname` select the mail/webmail and administration names.
 - `domains` lists hosted mail domains; `dkim_selector` selects the default signer.

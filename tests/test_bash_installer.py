@@ -25,7 +25,7 @@ class BashInstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='installer with spaces ') as td:
             root=Path(td);(root/'lib').mkdir();shutil.copyfile(ROOT/'install.sh',root/'install.sh')
             (root/'lib/mailctl.py').write_text('import json,sys;print(json.dumps(sys.argv[1:]));sys.exit(7)\n')
-            for args,expected in (([],['deploy']),(['--config','/private/site with spaces.json'],['deploy','--config','/private/site with spaces.json']),(['render','--output','output with spaces'],['render','--output','output with spaces'])):
+            for args,expected in ((['--config','/private/site with spaces.json'],['deploy','--config','/private/site with spaces.json']),(['--config=/private/site with spaces.json'],['deploy','--config=/private/site with spaces.json']),(['render','--output','output with spaces'],['render','--output','output with spaces'])):
                 with self.subTest(args=args):
                     result=subprocess.run(['bash',str(root/'install.sh'),*args],capture_output=True,text=True)
                     self.assertEqual(result.returncode,7,result.stderr)

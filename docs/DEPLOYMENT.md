@@ -1,11 +1,22 @@
 # Dedicated-host deployment
 
-Use the native Bash installer from the complete reviewed checkout/release:
-`sudo bash install.sh --config /root/site.json`. A bare `sudo bash install.sh`
-deploys the prepared `/etc/eric-mail/site.json`. Bash dispatches the installer
-commands to Python 3.9+ security/configuration helpers, so both runtimes are
-required on the target. Services run directly under systemd; Docker is not an
-installation or runtime dependency. `bash install.sh --help` lists commands.
+Use the native Bash installer from the complete reviewed checkout/release.
+`sudo bash install.sh` prompts for deployment settings, validates them, saves a
+mode-0600 configuration (default `/root/site.json`) and starts installation.
+`sudo bash install.sh --config /root/site.json` instead uses an existing JSON file
+without prompts. Repeat/unattended deployments must explicitly pass the saved
+file; a missing/invalid supplied file fails rather than starting a questionnaire.
+A terminal is required for prompts, and existing files are never overwritten.
+`bash install.sh configure --output /absolute/site.json` collects/validates settings
+without provisioning. The output directory must be owned by the invoking user
+and not writable by others. Cancellation before saving starts no deployment.
+
+Bash collects responses and dispatches installer commands to Python 3.9+
+security/configuration helpers; both runtimes are required. Services run directly
+under systemd, with no Docker deployment/runtime dependency. The questionnaire
+asks for pre-provisioned certificate/CA/CRL, verified artifact, backup and alert
+paths; it does not bootstrap those trust prerequisites. No database or mailbox
+passwords are requested. `bash install.sh --help` lists commands.
 
 ## Supported target and prerequisites
 

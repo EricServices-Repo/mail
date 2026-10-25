@@ -15,6 +15,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck php-cli
       - name: Syntax, generated PHP and security regressions
         run: ./tests/check.sh
+      - name: Root-only interactive installer dispatch against a stub backend
+        # PTY setup uses private temporary directories and never provisions this runner.
+        run: sudo python3 -m unittest discover -s tests -p test_interactive_setup.py -v
   sql-replication:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

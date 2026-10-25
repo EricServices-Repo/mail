@@ -46,7 +46,7 @@ For a full drill/recovery:
 5. Run every daemon validator, SQL grants tests, mailbox quota/delivery/retrieval checks, webmail session checks and external canaries from restricted test sources. Confirm postmaster/abuse mail, DKIM alignment, bounce behavior, monitoring, backups and notifications. Verify a selected mailbox's messages and attachments against the snapshot. Record actual data loss and recovery duration.
 6. Complete new release evidence and publish deliberately. Monitor deferred remote deliveries and queue drains. Reconcile any old-host queues under a reviewed duplicate-safe procedure; the backup excludes volatile Postfix queue files and does not promise zero loss of accepted-but-undelivered mail. If the required RPO includes queued mail, implement and test queue/volume snapshots before release.
 
-Automatic live restore, database down-migrations, split-brain promotion and multi-node replication remain intentionally unsupported. The former replication helpers exit with an error. Availability engineering must include consistent mailbox/database replication, authenticated private links, fencing and real failure drills rather than an all-interface database listener.
+Automatic live restore, database down-migrations and split-brain promotion remain intentionally unsupported. Optional [private SQL replication](REPLICATION.md) provisions a minimal read-only database replica. Full mail availability still requires consistent mailbox replication, queue handling, fencing and real failure drills. SQL replication does not replace independent backups or complete mail recovery.
 
 ## Incident response
 

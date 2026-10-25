@@ -454,13 +454,13 @@ def validate(c):
 def runtime_install():
     # Retain the exact reviewed source bundle used for provisioning; no mutable updater.
     h = hashlib.sha256()
-    paths = [ROOT / 'install.sh', ROOT / 'lib/mailctl.py'] + sorted((ROOT / 'templates').glob('*'))
+    paths = [ROOT / 'install.sh'] + sorted((ROOT / 'lib').glob('*.py')) + sorted((ROOT / 'templates').glob('*'))
     for p in paths:
         h.update(str(p.relative_to(ROOT)).encode()); h.update(p.read_bytes())
     release = Path('/opt/eric-mail/releases') / h.hexdigest()
     for p in paths:
         dest = release / p.relative_to(ROOT)
-        atomic(dest, p.read_bytes(), 0o700 if p.name == 'install.sh' else 0o600)
+        atomic(dest, p.read_bytes(), 0o700 if p.name in ('install.sh', 'replication.py') else 0o600)
     for parent in (release, release.parent):
         os.chmod(parent, 0o700)
     current = Path('/opt/eric-mail/current')
@@ -473,6 +473,7 @@ def runtime_install():
 def deploy(c, source_config, already_locked=False):
     with (contextlib.nullcontext() if already_locked else lock()):
         host_check()
+        require(not (STATE / 'sql-replica.json').exists(), 'A minimal SQL replica cannot be converted to a mail host by deploy')
         marker = STATE / 'installed.json'
         previous = read_json(marker) if marker.exists() else None
         if previous:
@@ -629,11 +630,14 @@ def backup(c, already_locked=False):
                 'fingerprint': fingerprint(c), 'release': Path('/opt/eric-mail/current').resolve().name,
                 'configuration_manifest': read_json(STATE / 'configuration-manifest.json'),
                 'created_at': time.time()}) + '\n')
+            replication_recovery = [str(p) for p in (
+                Path('/etc/my.cnf.d/zz-eric-mail-replication.cnf'),
+                Path('/var/lib/mysql/eric-mail-tls'), STATE / 'replication-primary.json') if p.exists()]
             report = run(['restic', 'backup', '--json', '--tag', 'eric-mail', '/var/vmail', '/var/lib/rspamd/dkim',
                  '/var/lib/redis', '/var/lib/roundcube', '/var/lib/postfixadmin', str(ETC),
                  '/etc/postfix', '/etc/dovecot', '/etc/nginx', '/etc/php-fpm.d', '/etc/rspamd',
                  '/etc/letsencrypt', c['certificate'], c['private_key'], c['admin_client_ca'], c['admin_client_crl'],
-                 '/opt/eric-mail', str(STATE / 'backup-stage'), str(STATE / 'packages.txt'),
+                 '/opt/eric-mail', str(STATE / 'backup-stage'), str(STATE / 'packages.txt'), *replication_recovery,
                  '--exclude', c['backup_environment'], '--exclude', env['RESTIC_PASSWORD_FILE']], env=env)
             summary = [json.loads(line) for line in report.splitlines() if line.strip()]
             snapshot_ids = [x['snapshot_id'] for x in summary if x.get('message_type') == 'summary' and x.get('snapshot_id')]

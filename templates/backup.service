@@ -1,0 +1,12 @@
+[Unit]
+Description=Consistent encrypted offsite mail backup
+After=network-online.target
+OnFailure=eric-mail-alert@%n.service
+[Service]
+Type=oneshot
+ExecStart=/opt/eric-mail/current/install.sh backup --config /etc/eric-mail/site.json
+ExecStopPost=/opt/eric-mail/current/install.sh resume-backup --config /etc/eric-mail/site.json
+User=root
+UMask=0077
+PrivateTmp=true
+TimeoutStartSec=2h

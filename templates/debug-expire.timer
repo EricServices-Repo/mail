@@ -1,0 +1,7 @@
+[Unit]
+Description=Automatically expire mail diagnostics
+[Timer]
+OnActiveSec=15min
+Unit=eric-mail-debug-expire.service
+[Install]
+WantedBy=timers.target

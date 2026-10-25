@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# EricServic.es Email Server Configure Primary Node
-#
-# Sets up Primary Mail Node for MySQL Replication
-#
-###############################################################
-# Version 1.0.1
-#
-# 
-# 
-################################################################
+set -Eeuo pipefail
+printf '%s\n' 'Replication is unsupported and disabled. Use verified offsite backups; see docs/OPERATIONS.md.' >&2
+exit 1

@@ -1,0 +1,33 @@
+{
+  "hostname": "mail.example.com",
+  "admin_hostname": "admin.example.com",
+  "domains": [
+    "example.com"
+  ],
+  "management_networks": [
+    "192.0.2.10/32",
+    "2001:db8::10/128"
+  ],
+  "interface": "ens192",
+  "admin_client_ca": "/etc/eric-mail/admin-ca.pem",
+  "certificate": "/etc/letsencrypt/live/mail.example.com/fullchain.pem",
+  "private_key": "/etc/letsencrypt/live/mail.example.com/privkey.pem",
+  "roundcube_archive": "/root/artifacts/roundcubemail-1.6.20-complete.tar.gz",
+  "roundcube_sha256": "REPLACE_WITH_INDEPENDENTLY_VERIFIED_SHA256",
+  "roundcube_version": "1.6.20",
+  "postfixadmin_archive": "/root/artifacts/postfixadmin-4.0.5-php8.4.tar.gz",
+  "postfixadmin_sha256": "REPLACE_WITH_INDEPENDENTLY_VERIFIED_SHA256",
+  "postfixadmin_version": "4.0.5",
+  "backup_environment": "/etc/eric-mail/restic.env",
+  "alert_command": [
+    "/usr/local/sbin/notify-mail-operator"
+  ],
+  "dkim_selector": "mail2026",
+  "mailbox_quota_mb": 2048,
+  "outbound_per_minute": 10,
+  "outbound_burst": 100,
+  "queue_max_age_seconds": 3600,
+  "queue_max_messages": 1000,
+  "operator": "REPLACE_WITH_RESPONSIBLE_OPERATOR",
+  "admin_client_crl": "/etc/eric-mail/admin-ca.crl.pem"
+}

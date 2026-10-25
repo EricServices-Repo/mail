@@ -1,0 +1,24 @@
+name: Disposable full-host recovery scenarios
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        type: choice
+        options: [install, reboot-check, restore-check, upgrade, interrupt-install]
+        required: true
+permissions:
+  contents: read
+jobs:
+  lab:
+    environment: mail-security-lab
+    runs-on: [self-hosted, Linux, eric-mail-disposable]
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run explicitly selected destructive lab scenario
+        env:
+          ERIC_MAIL_DISPOSABLE_LAB: I_ACCEPT_DESTRUCTIVE_LAB_PROVISIONING
+          LAB_SCENARIO: ${{ inputs.scenario }}
+        run: sudo --preserve-env=ERIC_MAIL_DISPOSABLE_LAB python3 tests/lab_scenarios.py "$LAB_SCENARIO" --previous-config /root/eric-mail-lab-previous.json

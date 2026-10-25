@@ -15,3 +15,23 @@ class MFATests(unittest.TestCase):
     def test_fail_closed_hooks_and_remote_credentials(self):
         p=(ROOT/'templates/webmail-mfa.php').read_text();self.assertIn("empty($args['valid'])",p);self.assertIn("$args['abort']=true",p)
         sql=(ROOT/'templates/dovecot-sql.conf').read_text();self.assertIn('t.revoked=0 AND t.expires_at>NOW()',sql);self.assertIn("'%r' IN ('127.0.0.1','::1')",sql)
+    def test_enrollment_reset_invalidates_old_session_version(self):
+        result=self.php('''
+class FakeStatement extends PDOStatement {
+    public $value; public function __construct($value) {$this->value=$value;}
+    public function execute(?array $params=null): bool {return true;}
+    public function fetchColumn(int $column=0): mixed {return $this->value;}
+}
+class FakeDatabase extends PDO {
+    public $seed='first'; public $active=1; public function __construct() {}
+    public function prepare(string $query,array $options=[]): PDOStatement|false {
+        return new FakeStatement(strpos($query,'SELECT active')===0?$this->active:$this->seed);
+    }
+}
+$db=new FakeDatabase();$version=hash('sha256','first');
+$before=mail_mfa_session_valid($db,'user@example.com',$version);
+$db->seed='reset';$after=mail_mfa_session_valid($db,'user@example.com',$version);
+$db->active=0;$disabled=mail_mfa_session_valid($db,'user@example.com',hash('sha256','reset'));
+echo json_encode([$before,$after,$disabled]);
+''')
+        self.assertEqual(json.loads(result),[True,False,False])

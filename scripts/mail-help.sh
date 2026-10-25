@@ -1,8 +1,5 @@
-echo -e "Mail Help"
-echo -e "The Following are the debugs available\n"
-echo -e "${BOLD}maildebug${NORMAL} - Turns on the debug logging for Dovecot and Postfix"
-echo -e "${BOLD}mailundebug${NORMAL} - Turns off the debug logging for Dovecot and Postfix"
-echo -e "${BOLD}maildomain${NORMAL} - Allows you to add another domain to be whitelisted and added to Certbot"
-echo -e "${BOLD}mailreplicationprimary${NORMAL} - This command must be run on the primary server\nbefore completion of installation in PostfixAdmin\nFailure to do so may result in invalid MySQL Database"
-echo -e "${BOLD}mailreplicationsecondary${NORMAL} - This command must be run on the secondary server\n before completion of installation in PostfixAdmin\Do not use the PostfixAdmin installation on the Secondary node"
-echo -e "${BOLD}mailupdate${NORMAL} - This commands checks and updates any new scripts added to be downloaded"
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "$ROOT/install.sh" --help "$@"

@@ -1,0 +1,5 @@
+[Unit]
+Description=Disable temporary mail diagnostics
+[Service]
+Type=oneshot
+ExecStart=/opt/eric-mail/current/install.sh debug-off

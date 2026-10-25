@@ -1,0 +1,26 @@
+{
+  "fingerprint": "REPLACE_WITH_INSTALL_SH_FINGERPRINT_OUTPUT",
+  "operator": "REPLACE_WITH_SITE_OPERATOR",
+  "completed_at": 0,
+  "checks": {
+    "admin_mfa_and_mtls": false,
+    "alert_delivery": false,
+    "certificate_renewal": false,
+    "dkim_spf_dmarc": false,
+    "external_ipv4_relay_rejected": false,
+    "external_ipv6_relay_rejected": false,
+    "filter_outage_defers": false,
+    "imap_cleartext_rejected": false,
+    "inbound_delivery": false,
+    "lan_relay_rejected": false,
+    "protected_web_paths": false,
+    "rate_limits": false,
+    "reboot": false,
+    "restore_drill": false,
+    "selinux_enforcing": false,
+    "submission_sender_ownership": false,
+    "tls_policy": false,
+    "upgrade_rollback": false
+  },
+  "release": "REPLACE_WITH_INSTALLED_JSON_RELEASE"
+}

@@ -1,0 +1,8 @@
+[Unit]
+Description=Notify operator of mail service failure
+[Service]
+Type=oneshot
+ExecStart=/opt/eric-mail/current/install.sh alert --config /etc/eric-mail/site.json --event %i
+User=root
+UMask=0077
+PrivateTmp=true

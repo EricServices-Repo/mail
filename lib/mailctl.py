@@ -38,7 +38,7 @@ PACKAGES = ('postfix', 'postfix-mysql', 'dovecot', 'dovecot-mysql', 'mariadb-ser
             'nginx', 'php-cli', 'php-fpm', 'php-mysqlnd', 'php-mbstring', 'php-xml',
             'php-intl', 'php-gd', 'php-opcache', 'php-process', 'php-sodium',
             'rspamd', 'redis', 'fail2ban', 'fail2ban-firewalld', 'firewalld',
-            'restic', 'certbot', 'policycoreutils-python-utils', 'rsyslog', 'openssl')
+            'restic', 'rsync', 'certbot', 'policycoreutils-python-utils', 'rsyslog', 'openssl')
 FIELDS = {'hostname', 'admin_hostname', 'domains', 'management_networks', 'interface',
           'admin_client_ca', 'admin_client_crl', 'certificate', 'private_key', 'roundcube_archive',
           'roundcube_sha256', 'roundcube_version', 'postfixadmin_archive',
@@ -669,6 +669,8 @@ def backup(c, already_locked=False):
         run(['restic', 'cat', 'config'], env=env)  # repository must be initialized deliberately
         # Stop writers for a consistent mailbox + database snapshot, then resume on ALL exit paths.
         active = [s for s in ('redis', 'rspamd', *SERVICES) if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode == 0]
+        resources = contextlib.ExitStack()
+        mail_source = '/var/vmail'
         atomic(STATE / 'backup-active.json', json.dumps({'services': active, 'started_at': time.time()}) + '\n')
         try:
             run(['systemctl', 'stop', *active]) if active else None
@@ -679,25 +681,43 @@ def backup(c, already_locked=False):
                                          '--single-transaction', '--routines', '--events', '--databases',
                                          'postfixadmin', 'roundcubemail'], stdout=output, stderr=subprocess.PIPE, check=False)
             require(result.returncode == 0, 'Database dump failed')
+            run(['rsync', '-a', '--delete', '--exclude=/private/', '--exclude=/public/', '--exclude=/pid/',
+                 '/var/spool/postfix/', str(STATE / 'backup-stage/postfix-spool') + '/'])
+            profile = ETC / 'snapshot.json'
+            if profile.exists():
+                from mail_snapshot import policy, mailbox_snapshot
+                mail_source = resources.enter_context(mailbox_snapshot(policy(profile)))
+                if active: run(['systemctl', 'start', *active])
             atomic(STATE / 'backup-stage/installation.json', json.dumps({
                 'fingerprint': fingerprint(c), 'release': Path('/opt/eric-mail/current').resolve().name,
                 'configuration_manifest': read_json(STATE / 'configuration-manifest.json'),
-                'created_at': time.time()}) + '\n')
+                'created_at': time.time(), 'mail_source': mail_source, 'mail_target': '/var/vmail',
+                'queue_source': str(STATE / 'backup-stage/postfix-spool'),
+                'security_state': {name: read_json(STATE/name) for name in
+                    ('dkim-selectors.json','content-security.json','security-checks.json',
+                     'dane-enabled.json','security-manifest.json','require-signatures.json') if (STATE/name).exists()}}) + '\n')
             replication_recovery = [str(p) for p in (*REPLICATION_RECOVERY, STATE / 'replication-primary.json') if p.exists()]
-            report = run(['restic', 'backup', '--json', '--tag', 'eric-mail', '/var/vmail', '/var/lib/rspamd/dkim',
+            profile_manifest = STATE/'security-manifest.json'
+            profile_paths = [entry['path'] for entry in read_json(profile_manifest)] if profile_manifest.exists() else []
+            for path in profile_paths:path_value(path)
+            report = run(['restic', 'backup', '--json', '--tag', 'eric-mail', mail_source, '/var/lib/rspamd/dkim',
                  '/var/lib/redis', '/var/lib/roundcube', '/var/lib/postfixadmin', str(ETC),
                  '/etc/postfix', '/etc/dovecot', '/etc/nginx', '/etc/php-fpm.d', '/etc/rspamd',
                  '/etc/letsencrypt', c['certificate'], c['private_key'], c['admin_client_ca'], c['admin_client_crl'],
-                 '/opt/eric-mail', str(STATE / 'backup-stage'), str(STATE / 'packages.txt'), *replication_recovery,
+                 '/opt/eric-mail', str(STATE / 'backup-stage'), str(STATE / 'packages.txt'), *replication_recovery, *profile_paths,
                  '--exclude', c['backup_environment'], '--exclude', env['RESTIC_PASSWORD_FILE']], env=env)
             summary = [json.loads(line) for line in report.splitlines() if line.strip()]
             snapshot_ids = [x['snapshot_id'] for x in summary if x.get('message_type') == 'summary' and x.get('snapshot_id')]
             require(snapshot_ids and re.fullmatch('[a-f0-9]{8,64}', snapshot_ids[-1]) is not None, 'Backup did not produce a snapshot ID')
             run(['restic', 'check'], env=env)
+            resources.close()  # COW validity and cleanup must pass before recording success.
             atomic(STATE / 'last-backup.json', json.dumps({'completed_at': time.time(), 'fingerprint': fingerprint(c), 'snapshot_id': snapshot_ids[-1]}) + '\n')
         finally:
-            (STATE / 'backup-stage/databases.sql').unlink(missing_ok=True)
-            resume_backup()
+            try:
+                resources.close()
+            finally:
+                (STATE / 'backup-stage/databases.sql').unlink(missing_ok=True)
+                resume_backup()
 
 
 def resume_backup():
@@ -771,6 +791,7 @@ EVIDENCE = {'external_ipv4_relay_rejected', 'external_ipv6_relay_rejected', 'lan
 
 def activate(c, evidence):
     with lock():
+        require(not (STATE/'recovery-import-started').exists(),'Recovery import is incomplete; public activation denied')
         require(not (STATE / 'deployment-incomplete').exists(), 'Deployment is incomplete')
         state = read_json(STATE / 'installed.json')
         require(state['fingerprint'] == fingerprint(c), 'Config differs from installed configuration')

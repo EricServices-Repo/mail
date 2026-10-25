@@ -480,13 +480,22 @@ def validate(c):
     require('auth_debug_passwords = yes' not in dc and 'auth_verbose_passwords = yes' not in dc, 'Secret logging is enabled')
 
 
+def source_paths():
+    return [ROOT / 'install.sh'] + sorted((ROOT / 'lib').glob('*.py')) + sorted((ROOT / 'templates').glob('*'))
+
+
+def source_digest():
+    h = hashlib.sha256()
+    for p in source_paths():
+        h.update(str(p.relative_to(ROOT)).encode()); h.update(p.read_bytes())
+    return h.hexdigest()
+
+
 def runtime_install():
     # Retain the exact reviewed source bundle used for provisioning; no mutable updater.
-    h = hashlib.sha256()
-    paths = [ROOT / 'install.sh'] + sorted((ROOT / 'lib').glob('*.py')) + sorted((ROOT / 'templates').glob('*'))
-    for p in paths:
-        h.update(str(p.relative_to(ROOT)).encode()); h.update(p.read_bytes())
-    release = Path('/opt/eric-mail/releases') / h.hexdigest()
+    paths = source_paths()
+    release_hash = source_digest()
+    release = Path('/opt/eric-mail/releases') / release_hash
     for p in paths:
         dest = release / p.relative_to(ROOT)
         atomic(dest, p.read_bytes(), 0o700 if p.name in ('install.sh', 'replication.py') else 0o600)
@@ -496,12 +505,16 @@ def runtime_install():
     tmp = current.with_name('.current-' + secrets.token_hex(8))
     tmp.symlink_to(release)
     os.replace(tmp, current)
-    return h.hexdigest()
+    return release_hash
 
 
-def deploy(c, source_config, already_locked=False):
+def deploy(c, source_config, already_locked=False, allow_rotation=False):
     with (contextlib.nullcontext() if already_locked else lock()):
         host_check()
+        require(allow_rotation or not (STATE/'credential-rotation.json').exists(), 'Recover unfinished credential rotation before deployment')
+        if (STATE/'require-signatures.json').exists():
+            import security_ops
+            security_ops.require_verified(c)
         require(not (STATE / 'sql-replica.json').exists(), 'A minimal SQL replica cannot be converted to a mail host by deploy')
         marker = STATE / 'installed.json'
         previous = read_json(marker) if marker.exists() else None
@@ -583,13 +596,19 @@ def deploy(c, source_config, already_locked=False):
             run(['php', str(ROOT / 'templates/db-grants.php')])
             for d in c['domains']:
                 add_domain(c, d)
+            if (STATE/'dane-enabled.json').exists():
+                import domain_security
+                domain_security.dane(reload=False)
             validate(c)
             run(['systemctl', 'daemon-reload'])
             run(['systemctl', 'unmask', *SERVICES])
             run(['systemctl', 'enable', '--now', 'rspamd', 'fail2ban', *SERVICES,
                  'eric-mail-monitor.timer', 'eric-mail-backup.timer'])
             run(['systemctl', 'restart', 'rspamd', 'fail2ban', *SERVICES])
-            health(c, require_backup=False)
+            if (STATE/'security-checks.json').exists():
+                import security_ops
+                security_ops.advisories()
+            health(c, require_backup=False, allow_rotation=allow_rotation)
             inventory = run(['rpm', '-qa', '--qf', '%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n'])
             atomic(STATE / 'packages.txt', inventory)
             backup(c, already_locked=True)
@@ -706,11 +725,14 @@ def tls_probe(host, port):
             return hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
 
 
-def health(c, require_backup=True, allow_maintenance=False):
+def health(c, require_backup=True, allow_maintenance=False, allow_rotation=False):
     maintenance = STATE / 'backup-active.json'
     if allow_maintenance and maintenance.exists() and 0 <= time.time() - read_json(maintenance)['started_at'] < 7200:
         return  # the backup unit has an independent timeout + OnFailure alert
     failures = []
+    if (STATE/'credential-rotation.json').exists() and not allow_rotation:
+        failures.append('unfinished-credential-rotation')
+    if (STATE/'thaw-required.json').exists():failures.append('filesystem-thaw-required')
     for s in ('mariadb', 'redis', 'rspamd', 'fail2ban', *SERVICES):
         if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode:
             failures.append('service:' + s)
@@ -745,6 +767,19 @@ def health(c, require_backup=True, allow_maintenance=False):
             if time.time() - state['completed_at'] > 93600 or state['fingerprint'] != fingerprint(c):
                 failures.append('backup-stale')
         validate(c)
+        if (STATE/'content-security.json').exists():
+            import content_security
+            content_security.health()
+        if (ETC/'web-egress.json').exists():
+            import web_egress
+            web_egress.health()
+        if (STATE/'security-checks.json').exists():
+            import security_ops
+            if not allow_rotation:security_ops.drift()
+            report=read_json(STATE/'advisories.json')
+            require(0<=time.time()-report['checked_at']<=172800 and not report['distribution_updates'] and not report['upstream_vulnerabilities'], 'Advisory checks stale or vulnerable packages present')
+        if (STATE/'dane-enabled.json').exists():
+            require(run(['postconf','-h','smtp_tls_security_level']).strip()=='dane' and run(['postconf','-h','smtp_dns_support_level']).strip()=='dnssec','DANE policy drift')
     except (MailError, OSError, ValueError, smtplib.SMTPException):
         failures.append('protocol/configuration/backup')
     atomic(STATE / 'health.json', json.dumps({'checked_at': time.time(), 'failures': failures}) + '\n')

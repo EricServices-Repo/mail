@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 077
-/opt/eric-mail/current/install.sh validate --config /etc/eric-mail/site.json
-systemctl reload nginx postfix dovecot
+exec /opt/eric-mail/current/install.sh renew-certificate --config /etc/eric-mail/site.json

@@ -1,0 +1,7 @@
+{
+  "hostname": "audit.example.net",
+  "port": 6514,
+  "ca": "/etc/eric-mail/audit-ca.pem",
+  "certificate": "/etc/eric-mail/audit-client.pem",
+  "private_key": "/etc/eric-mail/audit-client.key"
+}

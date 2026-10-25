@@ -1,0 +1,33 @@
+name: Independent delivery canary
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+permissions:
+  contents: read
+jobs:
+  canary:
+    if: github.event_name == 'workflow_dispatch' || vars.MAIL_CANARY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: mail-delivery-canary
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verified TLS submission and retrieval
+        env:
+          CANARY_JSON: ${{ secrets.MAIL_CANARY_JSON }}
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import os, pathlib, subprocess, tempfile
+          value = os.environ.pop('CANARY_JSON', '')
+          if not value:
+              raise SystemExit('Configure MAIL_CANARY_JSON in the mail-delivery-canary environment')
+          with tempfile.TemporaryDirectory() as td:
+              p = pathlib.Path(td) / 'credentials.json'
+              p.write_text(value)
+              p.chmod(0o600)
+              subprocess.run(['python3', 'lib/mail_canary.py', '--credentials', str(p)], check=True)
+          PY

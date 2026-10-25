@@ -7,7 +7,7 @@ A security-focused provisioning toolkit for a **dedicated Rocky Linux 9 host**, 
 ## Security model
 
 - Signed distribution packages; application archives supplied offline with independently verified SHA-256 digests. No `curl | bash`, unsigned mirror, mutable helper download, or self-updater.
-- TLS-required authenticated submission on 587 and IMAPS on 993. Public MX on 25 offers TLS with Internet SMTP interoperability. POP3, cleartext IMAP and optional 465 are disabled.
+- TLS-required authenticated submission on 587 and IMAPS on 993. Public MX on 25 offers TLS with Internet SMTP interoperability and Postscreen pre-greeting screening. POP3, cleartext IMAP and optional 465 are disabled.
 - Loopback-only trusted relaying; submission requires authentication and envelope sender ownership. Rspamd enforces matching header/envelope identities, filters ingress and egress, signs DKIM and limits outbound recipients per account. Filter failures defer SMTP.
 - Independent read-only lookup/authentication SQL users and restricted web application identities. Separate PHP pools; HTTPS, administrative CIDRs, client certificates and PostfixAdmin TOTP; installation routes denied.
 - Enforcing SELinux, persistent service configuration, bounded diagnostic logging, explicit firewall zones, encrypted offsite backups, health checks and alert integration.

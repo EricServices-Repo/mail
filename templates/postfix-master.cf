@@ -1,4 +1,8 @@
-smtp      inet  n       -       n       -       -       smtpd
+# Screen only public MX traffic. Authenticated submission bypasses postscreen.
+smtp      inet  n       -       n       -       1       postscreen
+smtpd     pass  -       -       n       -       -       smtpd
+dnsblog   unix  -       -       n       -       0       dnsblog
+tlsproxy  unix  -       -       n       -       0       tlsproxy
 submission inet n       -       n       -       -       smtpd
   -o syslog_name=postfix/submission
   -o smtpd_tls_security_level=encrypt

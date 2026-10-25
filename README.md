@@ -1,6 +1,12 @@
 # EricServices-Mail-Server
 
-Installation and operations tooling for a self-hosted, multi-domain mail server:
+**A Bash installer for a native, self-hosted, multi-domain mail server.** Run it
+on a prepared Rocky Linux host with `sudo bash install.sh`. It installs packages
+and systemd services directly; Docker is not required for deployment or runtime.
+Bash provides the installer entry point and command dispatch; Python 3.9+ is a
+dependency for the configuration and security helpers.
+
+The installer configures:
 
 - **Dovecot** — IMAP access and local mail delivery.
 - **Postfix** — SMTP transport and authenticated submission.
@@ -102,8 +108,8 @@ Edit all site-specific fields, including domains, networks, certificates, archiv
 paths/digests, backup environment and alert command. Preview the configuration:
 
 ```bash
-./install.sh init-secrets --output secrets.json
-./install.sh render --config site.json --secrets secrets.json --output build
+bash install.sh init-secrets --output secrets.json
+bash install.sh render --config site.json --secrets secrets.json --output build
 ```
 
 Rendering is offline. The preview secrets and generated output are private and
@@ -115,8 +121,13 @@ Transfer the reviewed release and site configuration to the target. With the
 configuration at `/root/site.json`, run:
 
 ```bash
-sudo ./install.sh deploy --config /root/site.json
+sudo bash install.sh --config /root/site.json
 ```
+
+With the prepared configuration already at `/etc/eric-mail/site.json`, simply run
+`sudo bash install.sh`. Use `bash install.sh --help` to list installation and
+operations commands, or `bash install.sh mailbox-mfa --help` for feature help.
+The complete checkout/release is required alongside `install.sh`.
 
 The installer generates persistent credentials under `/etc/eric-mail/`, installs
 its managed runtime under `/opt/eric-mail/current`, validates services and takes an
@@ -147,9 +158,9 @@ have their own example policies and setup commands.
 Create administrative and required service mailboxes using the managed CLI:
 
 ```bash
-sudo /opt/eric-mail/current/install.sh admin --address operator@example.com
-sudo /opt/eric-mail/current/install.sh mailbox --address postmaster@example.com
-sudo /opt/eric-mail/current/install.sh mailbox --address abuse@example.com
+sudo bash /opt/eric-mail/current/install.sh admin --address operator@example.com
+sudo bash /opt/eric-mail/current/install.sh mailbox --address postmaster@example.com
+sudo bash /opt/eric-mail/current/install.sh mailbox --address abuse@example.com
 ```
 
 Use your own hosted domain. Enroll administrator TOTP and mailbox TOTP, issue device
@@ -157,8 +168,8 @@ credentials for mail clients, configure the security profiles, publish DNS and t
 external delivery. For example, mailbox enrollment is a root-only operation:
 
 ```bash
-sudo python3 /opt/eric-mail/current/lib/mail_auth.py enroll --address postmaster@example.com
-sudo python3 /opt/eric-mail/current/lib/mail_auth.py device --address postmaster@example.com --label 'Mail client'
+sudo bash /opt/eric-mail/current/install.sh mailbox-mfa enroll --address postmaster@example.com
+sudo bash /opt/eric-mail/current/install.sh mailbox-mfa device --address postmaster@example.com --label 'Mail client'
 ```
 
 Enrollment seeds, recovery codes and device passwords are displayed once. Deliver
@@ -171,7 +182,7 @@ configuration fingerprint, installed release hash and operator, and mark checks 
 only after execution. Then activate:
 
 ```bash
-sudo /opt/eric-mail/current/install.sh activate --evidence /root/release-evidence.json
+sudo bash /opt/eric-mail/current/install.sh activate --evidence /root/release-evidence.json
 ```
 
 Acceptance includes relay rejection, MFA/revocation, scanner outage/quarantine,
@@ -198,9 +209,9 @@ POP3, cleartext IMAP and optional port 465 are disabled by the managed configura
 The original `debugmail` / `undebugmail` helpers are replaced by managed commands:
 
 ```bash
-sudo /opt/eric-mail/current/install.sh health
-sudo /opt/eric-mail/current/install.sh debug-on
-sudo /opt/eric-mail/current/install.sh debug-off
+sudo bash /opt/eric-mail/current/install.sh health
+sudo bash /opt/eric-mail/current/install.sh debug-on
+sudo bash /opt/eric-mail/current/install.sh debug-off
 ```
 
 Diagnostic logging expires automatically and password logging remains disabled.
@@ -227,7 +238,8 @@ Python 3.9+, PHP CLI and ShellCheck are required for local release checks:
 ./tests/check.sh
 ```
 
-GitHub CI also runs an isolated MariaDB replication integration test. Disposable
+GitHub CI uses Docker only for an isolated MariaDB replication integration test.
+This test does not build or deploy a mail-server container image. Disposable
 host scenarios are manually dispatched against an explicitly configured lab runner;
 they must never target production. See [implementation status](docs/IMPLEMENTATION.md)
 and the feature-specific acceptance guides for validation boundaries.

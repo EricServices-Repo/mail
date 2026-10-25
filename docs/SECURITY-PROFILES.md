@@ -10,11 +10,11 @@ log receiver was changed by this PR.
 ## Malware scanning and quarantine (improvement 5)
 
 ```
-python3 lib/content_security.py enable
-python3 lib/content_security.py health
-python3 lib/content_security.py list
-python3 lib/content_security.py release --id ABC123 --approve
-python3 lib/content_security.py expire --days 30 --approve
+bash install.sh content-security enable
+bash install.sh content-security health
+bash install.sh content-security list
+bash install.sh content-security release --id ABC123 --approve
+bash install.sh content-security expire --days 30 --approve
 ```
 
 Enable installs signed ClamAV packages, a local socket-only scanner, hourly signature
@@ -42,8 +42,8 @@ Copy `config/web-egress.example.json` to a root-owned mode-0600 policy, replacin
 the example addresses with the exact mail endpoints and local recursive resolvers:
 
 ```
-python3 lib/web_egress.py apply --policy /root/web-egress.json
-python3 lib/web_egress.py health
+bash install.sh web-egress apply --policy /root/web-egress.json
+bash install.sh web-egress health
 ```
 
 The separate nftables output table allows Roundcube TCP 587/993 only to listed
@@ -63,11 +63,11 @@ option. Verify IPv4/IPv6, loopback relay denial and reboot behavior on the targe
 Install the signed `bind-utils` package for `dig`. Check the actual public records:
 
 ```
-python3 lib/domain_security.py check --domain example.com --address 192.0.2.25
-python3 lib/domain_security.py sts-policy --mode testing > /root/mta-sts.txt
-python3 lib/domain_security.py dkim-stage --domain example.com --selector mail2027
-python3 lib/domain_security.py dkim-promote --domain example.com --selector mail2027 --address 192.0.2.25
-python3 lib/domain_security.py dane-enable
+bash install.sh domain-security check --domain example.com --address 192.0.2.25
+bash install.sh domain-security sts-policy --mode testing > /root/mta-sts.txt
+bash install.sh domain-security dkim-stage --domain example.com --selector mail2027
+bash install.sh domain-security dkim-promote --domain example.com --selector mail2027 --address 192.0.2.25
+bash install.sh domain-security dane-enable
 ```
 
 Readiness checks exact MX and forward/reverse IP sets, a conservative explicit-IP
@@ -109,8 +109,8 @@ and a revocable device credential. A mode-0600 JSON file must contain exactly
 be the controlled mailbox, with username including its device ID under mailbox MFA.
 
 ```
-python3 lib/mail_canary.py --credentials /secure/canary.json --output /secure/result.json
-python3 lib/remote_audit.py --policy /root/remote-audit.json
+bash install.sh canary --credentials /secure/canary.json --output /secure/result.json
+bash install.sh remote-audit --policy /root/remote-audit.json
 ```
 
 The canary verifies TLS identity, submits a unique message and polls IMAP for its
@@ -135,15 +135,15 @@ complete immutable audit trail of every web-admin database change.
 ## Advisory, inventory, integrity and rotation (improvement 10)
 
 ```
-python3 lib/security_ops.py sbom > /root/mail-sbom.json
-python3 lib/security_ops.py advisories
-python3 lib/security_ops.py enable-checks
-python3 lib/security_ops.py drift
-python3 lib/security_ops.py verify --archive /root/release.tar.gz --signature /root/release.sig --key /root/release-key.pem --key-sha256 INDEPENDENT_PIN --toolkit
-python3 lib/security_ops.py verify --archive /root/application.tar.gz --signature /root/application.sig --key /root/application-key.pem --key-sha256 INDEPENDENT_PIN
-python3 lib/security_ops.py enforce-signatures
-python3 lib/security_ops.py rotate-db
-python3 lib/security_ops.py recover-rotation
+bash install.sh security-ops sbom > /root/mail-sbom.json
+bash install.sh security-ops advisories
+bash install.sh security-ops enable-checks
+bash install.sh security-ops drift
+bash install.sh security-ops verify --archive /root/release.tar.gz --signature /root/release.sig --key /root/release-key.pem --key-sha256 INDEPENDENT_PIN --toolkit
+bash install.sh security-ops verify --archive /root/application.tar.gz --signature /root/application.sig --key /root/application-key.pem --key-sha256 INDEPENDENT_PIN
+bash install.sh security-ops enforce-signatures
+bash install.sh security-ops rotate-db
+bash install.sh security-ops recover-rotation
 ```
 
 Inventory is CycloneDX JSON with installed RPM versions, pinned application artifact

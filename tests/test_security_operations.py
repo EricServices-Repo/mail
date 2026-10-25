@@ -108,3 +108,18 @@ class SecurityOperationsTests(unittest.TestCase):
         with mock.patch.object(mail_canary.smtplib,'SMTP') as smtp:
             with self.assertRaises(ops.m.MailError):mail_canary.check({'hostname':'mail.example.com','username':'user','password':'p','sender':'user@example.com\r\nBcc: attacker','recipient':'user@example.com'})
             smtp.assert_not_called()
+    def test_profiles_cannot_switch_to_uninstalled_source(self):
+        with mock.patch.object(ops.m,'read_json',return_value={'release':'old'}),mock.patch.object(ops.m,'source_digest',return_value='new'),mock.patch.object(ops.m,'runtime_install') as install:
+            with self.assertRaises(ops.m.MailError):ops.profile_runtime()
+            install.assert_not_called()
+
+    def test_old_acceptance_evidence_cannot_skip_new_security_gates(self):
+        import contextlib,time
+        names={'mailbox_mfa_enrollment_revocation','malware_quarantine_outage','web_worker_egress','independent_delivery_audit','advisories_integrity_rotation','durable_queue_recovery','domain_transport_readiness'}
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);c={'operator':'test'};fingerprint=ops.m.fingerprint(c)
+            ops.m.atomic(root/'installed.json',json.dumps({'fingerprint':fingerprint,'release':'reviewed'}))
+            proof=root/'evidence';ops.m.atomic(proof,json.dumps({'fingerprint':fingerprint,'release':'reviewed','operator':'test','completed_at':time.time(),'checks':{k:True for k in ops.m.EVIDENCE-names}}))
+            with mock.patch.object(ops.m,'STATE',root),mock.patch.object(ops.m,'lock',side_effect=contextlib.nullcontext),mock.patch.object(ops.m,'firewall') as firewall:
+                with self.assertRaises(ops.m.MailError):ops.m.activate(c,proof)
+                firewall.assert_not_called()

@@ -193,3 +193,11 @@ The MFA PR and recovery PR have their own browser/client and full-host acceptanc
 requirements. These controls provide implementation and explicit setup commands;
 no production credentials, PKI issuance, DNS changes or host infrastructure were
 invented or performed as part of repository development.
+
+
+Activation requires the new evidence checks in
+`config/release-evidence.example.json` as well as the original checks. An old proof
+cannot open ingress without those additional measured acceptance results. The
+profile installers require that their source matches the installed reviewed runtime;
+upgrade/deploy the release first rather than switching the managed runtime while
+applying a profile from a different checkout.

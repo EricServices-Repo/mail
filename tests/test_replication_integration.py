@@ -23,19 +23,20 @@ class MariaDBIntegration(unittest.TestCase):
         return p.stdout
 
     def db(self, node, sql):
-        return self.command(['docker', 'exec', '-i', node, 'mariadb', '--user=root', '--batch', '--raw', '--skip-column-names'],
+        return self.command(['docker', 'exec', '-i', node, 'mariadb', '--socket=/var/lib/mysql/mysql.sock', '--user=root', '--batch', '--raw', '--skip-column-names'],
                             data="SET SESSION sql_mode='NO_BACKSLASH_ESCAPES';\n" + sql)
 
     def ready(self, node):
         for _ in range(90):
-            p = subprocess.run(['docker', 'exec', node, 'mariadb-admin', '--user=root', 'ping'],
+            p = subprocess.run(['docker', 'exec', node, 'mariadb-admin', '--socket=/var/lib/mysql/mysql.sock', '--user=root', 'ping'],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
             if not p.returncode: return
             time.sleep(1)
-        self.fail('Isolated MariaDB did not become ready')
+        logs = subprocess.run(['docker', 'logs', node], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False).stdout
+        self.fail('Isolated MariaDB did not become ready: ' + logs[-4000:].replace('a' * 64, '[redacted]'))
 
     def status(self):
-        text = self.command(['docker', 'exec', '-i', self.replica_name, 'mariadb', '--user=root', '--vertical'], 'SHOW SLAVE STATUS;')
+        text = self.command(['docker', 'exec', '-i', self.replica_name, 'mariadb', '--socket=/var/lib/mysql/mysql.sock', '--user=root', '--vertical'], 'SHOW SLAVE STATUS;')
         return r.parse_status(text)
 
     def wait_replication(self):
@@ -95,7 +96,7 @@ class MariaDBIntegration(unittest.TestCase):
                         'CREATE TABLE roundcubemail.replica_test (id INT PRIMARY KEY); INSERT INTO roundcubemail.replica_test VALUES (1);')
                 secret = {'username': 'mail_replica', 'password': 'a' * 64}
                 self.db(self.primary_name, r.primary_account(configs['primary'], secret))
-                dump = self.command(['docker', 'exec', self.primary_name, 'mariadb-dump', '--user=root', '--single-transaction',
+                dump = self.command(['docker', 'exec', self.primary_name, 'mariadb-dump', '--socket=/var/lib/mysql/mysql.sock', '--user=root', '--single-transaction',
                                      '--master-data=2', '--databases', 'postfixadmin', 'roundcubemail'])
                 dump_path = root / 'dump.sql'; dump_path.write_text(dump)
                 log, pos = r.dump_coordinates(dump_path)
@@ -110,7 +111,7 @@ class MariaDBIntegration(unittest.TestCase):
                 self.assertEqual(self.db(self.replica_name, 'SELECT @@read_only,@@skip_networking;').strip(), '1\t1')
                 # Normal database identities cannot bypass read-only; root is deliberately privileged for recovery.
                 self.db(self.replica_name, "CREATE USER 'test_writer'@'localhost'; GRANT ALL ON postfixadmin.* TO 'test_writer'@'localhost';")
-                denied = subprocess.run(['docker', 'exec', '-i', self.replica_name, 'mariadb', '--user=test_writer'],
+                denied = subprocess.run(['docker', 'exec', '-i', self.replica_name, 'mariadb', '--socket=/var/lib/mysql/mysql.sock', '--user=test_writer'],
                                         input='INSERT INTO postfixadmin.replica_test VALUES (99);', text=True,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
                 self.assertNotEqual(denied.returncode, 0)

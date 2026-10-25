@@ -31,6 +31,8 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 STATE = Path('/var/lib/eric-mail')
 ETC = Path('/etc/eric-mail')
+REPLICATION_RECOVERY = (Path('/etc/my.cnf.d/zz-eric-mail-replication.cnf'),
+                        Path('/var/lib/mysql/eric-mail-tls'))
 SERVICES = ('nginx', 'postfix', 'dovecot', 'php-fpm')
 PACKAGES = ('postfix', 'postfix-mysql', 'dovecot', 'dovecot-mysql', 'mariadb-server',
             'nginx', 'php-cli', 'php-fpm', 'php-mysqlnd', 'php-mbstring', 'php-xml',
@@ -630,9 +632,7 @@ def backup(c, already_locked=False):
                 'fingerprint': fingerprint(c), 'release': Path('/opt/eric-mail/current').resolve().name,
                 'configuration_manifest': read_json(STATE / 'configuration-manifest.json'),
                 'created_at': time.time()}) + '\n')
-            replication_recovery = [str(p) for p in (
-                Path('/etc/my.cnf.d/zz-eric-mail-replication.cnf'),
-                Path('/var/lib/mysql/eric-mail-tls'), STATE / 'replication-primary.json') if p.exists()]
+            replication_recovery = [str(p) for p in (*REPLICATION_RECOVERY, STATE / 'replication-primary.json') if p.exists()]
             report = run(['restic', 'backup', '--json', '--tag', 'eric-mail', '/var/vmail', '/var/lib/rspamd/dkim',
                  '/var/lib/redis', '/var/lib/roundcube', '/var/lib/postfixadmin', str(ETC),
                  '/etc/postfix', '/etc/dovecot', '/etc/nginx', '/etc/php-fpm.d', '/etc/rspamd',

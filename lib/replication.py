@@ -82,10 +82,10 @@ def certificate_check(c):
                   'Replication TLS inputs must be root-owned and not writable by others')
     m.private_file(c['tls_key'])
     purpose = 'sslserver' if c['role'] == 'primary' else 'sslclient'
-    m.run(['openssl', 'verify', '-purpose', purpose, '-CAfile', c['tls_ca'], c['tls_certificate']])
+    verify = ['openssl', 'verify', '-purpose', purpose, '-CAfile', c['tls_ca']]
+    if c['role'] == 'primary': verify.extend(['-verify_hostname', c['primary_hostname']])
+    m.run(verify + [c['tls_certificate']])
     m.run(['openssl', 'x509', '-in', c['tls_certificate'], '-noout', '-checkend', '1209600'])
-    if c['role'] == 'primary':
-        m.run(['openssl', 'x509', '-in', c['tls_certificate'], '-noout', '-checkhost', c['primary_hostname']])
     cert = m.run(['openssl', 'x509', '-in', c['tls_certificate'], '-pubkey', '-noout'])
     key = m.run(['openssl', 'pkey', '-in', c['tls_key'], '-pubout'])
     m.require(cert == key, 'Replication TLS key does not match certificate')

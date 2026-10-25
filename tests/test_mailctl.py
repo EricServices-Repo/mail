@@ -192,7 +192,7 @@ class ConfigurationTests(unittest.TestCase):
             if argv[:2] == ['restic', 'backup']: raise m.MailError('simulated backup failure')
             return ''
         def proc(argv, **kwargs): return subprocess.CompletedProcess(argv, 0, '', '')
-        with mock.patch.object(m, 'STATE', state), mock.patch.object(m, 'directory', side_effect=lambda p, *a: Path(p).mkdir(parents=True, exist_ok=True)), mock.patch.object(m, 'load_backup_environment', return_value={'RESTIC_PASSWORD_FILE': '/root/private-key'}), mock.patch.object(m, 'run', side_effect=command), mock.patch.object(m.subprocess, 'run', side_effect=proc):
+        with mock.patch.object(m, 'STATE', state), mock.patch.object(m, 'REPLICATION_RECOVERY', ()), mock.patch.object(m, 'directory', side_effect=lambda p, *a: Path(p).mkdir(parents=True, exist_ok=True)), mock.patch.object(m, 'load_backup_environment', return_value={'RESTIC_PASSWORD_FILE': '/root/private-key'}), mock.patch.object(m, 'run', side_effect=command), mock.patch.object(m.subprocess, 'run', side_effect=proc):
             with self.assertRaises(m.MailError): m.backup(self.c, already_locked=True)
         self.assertTrue(any(x[:2] == ['systemctl', 'start'] for x in events))
         self.assertFalse((state / 'last-backup.json').exists())

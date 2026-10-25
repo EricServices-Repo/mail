@@ -6,6 +6,27 @@ and systemd services directly; Docker is not required for deployment or runtime.
 Bash provides the installer entry point and command dispatch; Python 3.9+ is a
 dependency for the configuration and security helpers.
 
+## Quick start
+
+On a prepared Rocky Linux 9 host, choose either installation method:
+
+```bash
+# No JSON supplied: answer the installer questions.
+sudo bash install.sh
+
+# Existing JSON supplied: use its settings without prompts.
+sudo bash install.sh --config /root/site.json
+```
+
+You do not need to create `/root/site.json` before interactive installation. The
+Bash questionnaire collects and validates your answers, lets you choose where to
+save them (default `/root/site.json`), creates a private mode-`0600` JSON file, then
+starts installation. It never overwrites an existing file. Cancelling the
+questionnaire starts no deployment. Unattended installation requires `--config`.
+
+See [Installation](#installation) for prerequisites, configuration-only setup and
+repeat deployments.
+
 The installer configures:
 
 - **Dovecot** — IMAP access and local mail delivery.
@@ -103,18 +124,6 @@ cd mail
 # For file-based configuration, copy config/site.example.json to a private site.json.
 ```
 
-If using file-based configuration, copy `config/site.example.json` to `site.json`,
-set mode `0600`, and edit its site-specific fields. Interactive installation below
-collects those settings for you. A prepared file can also be previewed offline:
-
-```bash
-bash install.sh init-secrets --output secrets.json
-bash install.sh render --config site.json --secrets secrets.json --output build
-```
-
-Rendering is offline. The preview secrets and generated output are private and
-must not be committed or copied over an established host's credentials.
-
 ### Deploy on the prepared host
 
 You can supply JSON or answer questions in the Bash installer.
@@ -164,6 +173,20 @@ its managed runtime under `/opt/eric-mail/current`, validates services and takes
 initial backup. Public ingress remains restricted pending acceptance evidence.
 The historical direct-download execution commands are superseded by this reviewed
 release workflow.
+
+### Optional: prepare or preview JSON before installation
+
+If using file-based configuration, copy `config/site.example.json` to `site.json`,
+set mode `0600`, and edit its site-specific fields. Interactive installation below
+collects those settings for you. A prepared file can also be previewed offline:
+
+```bash
+bash install.sh init-secrets --output secrets.json
+bash install.sh render --config site.json --secrets secrets.json --output build
+```
+
+Rendering is offline. The preview secrets and generated output are private and
+must not be committed or copied over an established host's credentials.
 
 ## Variables and configuration
 

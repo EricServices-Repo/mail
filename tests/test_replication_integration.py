@@ -47,7 +47,11 @@ class MariaDBIntegration(unittest.TestCase):
                 return row
             except r.m.MailError:
                 time.sleep(1)
-        self.fail('Replica did not reach verified TLS / running IO and SQL state')
+        row = self.status()
+        fields = ('Slave_IO_Running', 'Slave_SQL_Running', 'Master_SSL_Allowed', 'Master_SSL_Verify_Server_Cert',
+                  'Seconds_Behind_Master', 'Last_IO_Error', 'Last_SQL_Error')
+        detail = json.dumps({k: row.get(k) for k in fields}).replace('a' * 64, '[redacted]')
+        self.fail('Replica did not reach verified TLS / running IO and SQL state: ' + detail)
 
     def test_mutual_tls_seed_live_changes_read_only_restart_and_failure(self):
         suffix = uuid.uuid4().hex[:10]

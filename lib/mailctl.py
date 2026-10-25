@@ -252,6 +252,8 @@ def render(c, s, output):
             f'dbname = postfixadmin\nquery = {query}\n', group='postfix')
     for pool in ('roundcube', 'postfixadmin'):
         template('php-pool.conf', '/etc/php-fpm.d/' + pool + '.conf', 0o644, extra={'POOL': pool})
+    template('mfa-core.php', '/opt/eric-mail/security/mfa-core.php', 0o644)
+    template('webmail-mfa.php', '/opt/eric-mail/apps/roundcube/plugins/eric_mfa/eric_mfa.php', 0o644)
     template('roundcube.php', '/opt/eric-mail/apps/roundcube/config/config.inc.php', group='roundcube')
     template('postfixadmin.php', '/opt/eric-mail/apps/postfixadmin/config.local.php', group='postfixadmin')
     put('/etc/eric-mail/roundcube.json', json.dumps({'hostname': c['hostname'], 'password': s['roundcube'],
@@ -547,7 +549,13 @@ def deploy(c, source_config, already_locked=False):
                 install_app(c, pool)
             # PFA expects its template cache at templates_c; isolate this one writable directory.
             directory('/opt/eric-mail/apps/postfixadmin/templates_c', 0o700, 'postfixadmin', 'postfixadmin')
+            directory('/opt/eric-mail/security', 0o755)
+            directory('/opt/eric-mail/apps/roundcube/plugins/eric_mfa', 0o755)
             s = init_secrets(ETC / 'secrets.json')
+            if not (ETC / 'mfa.key').exists(): atomic(ETC / 'mfa.key', secrets.token_bytes(32), 0o640)
+            require((ETC / 'mfa.key').stat().st_size == 32, 'Invalid MFA encryption key')
+            os.chmod(ETC / 'mfa.key', 0o640)
+            shutil.chown(ETC / 'mfa.key', user='root', group='roundcube')
             release = runtime_install()
             with tempfile.TemporaryDirectory(prefix='mail-render-', dir=STATE) as td:
                 entries = render(c, s, td)
@@ -565,10 +573,12 @@ def deploy(c, source_config, already_locked=False):
             # Persist SELinux contexts rather than weakening enforcement.
             contexts = [('/var/vmail(/.*)?', 'mail_spool_t'),
                         ('/opt/eric-mail/apps(/.*)?', 'httpd_sys_content_t'),
+                        ('/opt/eric-mail/security(/.*)?', 'httpd_sys_content_t'),
                         ('/opt/eric-mail/apps/postfixadmin/templates_c(/.*)?', 'httpd_sys_rw_content_t'),
                         ('/var/lib/roundcube(/.*)?', 'httpd_sys_rw_content_t'),
                         ('/var/lib/postfixadmin(/.*)?', 'httpd_sys_rw_content_t'),
-                        ('/etc/eric-mail/(roundcube|postfixadmin)\\.json', 'httpd_sys_content_t')]
+                        ('/etc/eric-mail/(roundcube|postfixadmin)\\.json', 'httpd_sys_content_t'),
+                        ('/etc/eric-mail/mfa.key', 'httpd_sys_content_t')]
             known = run(['semanage', 'fcontext', '-l', '-C'])
             for pattern, typ in contexts:
                 action = '-m' if pattern in known else '-a'
@@ -580,6 +590,7 @@ def deploy(c, source_config, already_locked=False):
             run(['php', str(ROOT / 'templates/db-provision.php')], data=json.dumps(s))
             run(['php', str(ROOT / 'templates/migrate-postfixadmin.php')])
             run(['php', '/opt/eric-mail/apps/roundcube/bin/initdb.sh', '--dir=/opt/eric-mail/apps/roundcube/SQL', '--update'])
+            run(['php', str(ROOT / 'templates/mfa-schema.php')])
             run(['php', str(ROOT / 'templates/db-grants.php')])
             for d in c['domains']:
                 add_domain(c, d)

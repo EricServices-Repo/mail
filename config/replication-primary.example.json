@@ -1,0 +1,18 @@
+{
+  "role": "primary",
+  "bind_address": "10.44.0.1",
+  "peer_address": "10.44.0.2",
+  "primary_hostname": "sql-primary.internal.example.com",
+  "server_id": 1001,
+  "peer_server_id": 1002,
+  "private_interface": "ens224",
+  "management_networks": ["10.44.0.10/32"],
+  "tls_ca": "/etc/eric-mail/replication-ca.pem",
+  "tls_certificate": "/etc/eric-mail/replication-server.pem",
+  "tls_key": "/etc/eric-mail/replication-server.key",
+  "replication_user": "mail_replica",
+  "peer_subject": "/CN=mail-replica",
+  "credential_file": "/etc/eric-mail/replication-credentials.json",
+  "max_lag_seconds": 300,
+  "alert_command": ["/usr/local/sbin/notify-mail-operator"]
+}

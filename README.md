@@ -62,3 +62,8 @@ python3 -m unittest discover -s tests -v
 The GitHub CI workflow runs local checks. The VM acceptance workflow is manually dispatched on a disposable, explicitly configured self-hosted lab runner. It must never target a production host.
 
 See [SECURITY.md](SECURITY.md) for reporting, patch policy and deployment limitations. The original [review](SECURITY-REVIEW.md) remains the historical baseline; the implementation status document tracks changes and remaining environment-dependent verification.
+
+
+## Optional minimal SQL replica
+
+For a peer-restricted, mutually authenticated, read-only MariaDB replica without a web/mail stack, see [SQL disaster-recovery replication](docs/REPLICATION.md). This does not provide mailbox replication, a backup MX or automatic failover; independent offsite backups remain mandatory.

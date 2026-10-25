@@ -777,13 +777,29 @@ def debug(enabled):
         run(['systemctl', 'restart' if enabled else 'stop', 'eric-mail-debug-expire.timer'])
 
 
+
+def restore_destination(target, base=None):
+    base = Path(base) if base is not None else STATE
+    p = Path(target)
+    require(base.is_dir() and not base.is_symlink(), 'Restore base must be a real directory')
+    st = base.stat()
+    require(st.st_uid == os.geteuid() and not st.st_mode & 0o077, 'Restore base must be private and owned by the invoking user')
+    require(p.is_absolute() and '..' not in p.parts and p.parent == base and
+            re.fullmatch(r'restore-[A-Za-z0-9][A-Za-z0-9_-]{0,63}', p.name) is not None and
+            not p.exists() and not p.is_symlink() and p.parent.resolve() == base.resolve(),
+            'Restore requires a new direct restore-* child of the protected state directory')
+    return p
+
 def restore(c, target, snapshot):
     with lock():
-        p = Path(target)
-        require(p.is_absolute() and not p.exists() and str(p).startswith('/var/lib/eric-mail/restore-'),
-                'Restore must target a NEW /var/lib/eric-mail/restore-* directory, never the live filesystem')
+        p = restore_destination(target)
         require(re.fullmatch('[a-f0-9]{8,64}', snapshot) is not None, 'Use an explicit restic snapshot ID')
-        p.mkdir(mode=0o700)
+        # Exclusive creation relative to a no-follow directory descriptor avoids a destination race.
+        fd = os.open(STATE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.mkdir(p.name, mode=0o700, dir_fd=fd)
+        finally:
+            os.close(fd)
         run(['restic', 'restore', snapshot, '--target', p, '--verify'], env=load_backup_environment(c['backup_environment']))
         print('Restored to an isolated directory. Follow docs/OPERATIONS.md to verify and recover.')
 

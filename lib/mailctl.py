@@ -241,10 +241,10 @@ def render(c, s, output):
     maps = {
         'domains': "SELECT domain FROM domain WHERE domain='%s' AND active=1 AND backupmx=0",
         'mailboxes': "SELECT username FROM mailbox WHERE username='%s' AND active=1",
-        'aliases': "SELECT goto FROM alias WHERE address='%s' AND active=1",
-        'senders': "SELECT username FROM mailbox WHERE username='%s' AND active=1 AND smtp_active=1 "
-                   "UNION SELECT m.username FROM alias a JOIN mailbox m ON a.goto=m.username "
-                   "WHERE a.address='%s' AND a.active=1 AND m.active=1 AND m.smtp_active=1"
+        'aliases': "SELECT a.goto FROM alias a JOIN domain d ON d.domain=a.domain WHERE a.address='%s' AND a.active=1 AND d.active=1",
+        'senders': "SELECT m.username FROM mailbox m JOIN domain d ON d.domain=m.domain WHERE m.username='%s' AND m.active=1 AND m.smtp_active=1 AND d.active=1 "
+                   "UNION SELECT m.username FROM alias a JOIN mailbox m ON a.goto=m.username JOIN domain d ON d.domain=m.domain "
+                   "WHERE a.address='%s' AND a.active=1 AND m.active=1 AND m.smtp_active=1 AND d.active=1"
     }
     for name, query in maps.items():
         put('/etc/postfix/sql/' + name + '.cf',
@@ -617,6 +617,19 @@ def add_domain(c, value):
            f'{c["dkim_selector"]}._domainkey.{value} TXT "v=DKIM1; k=rsa; p={body}"\n', 0o600)
 
 
+
+def domain_state(c, name, enabled):
+    domain(name)
+    require(type(enabled) is bool, 'Domain state must be explicit')
+    if enabled:
+        require(name in c['domains'], 'Enabling requires the domain in reviewed desired configuration')
+    with lock():
+        run(['php', str(ROOT / 'templates/domain-state.php')],
+            data=json.dumps({'domain': name, 'enabled': enabled}))
+        if not enabled:
+            run(['doveadm', 'kick', '*@' + name])
+        print('Domain enabled.' if enabled else 'Domain disabled and IMAP sessions terminated.')
+
 def load_backup_environment(path):
     private_file(path)
     data = {}
@@ -861,7 +874,7 @@ def main():
     signal.signal(signal.SIGTERM, terminate)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init-secrets', 'render', 'deploy', 'validate', 'health',
-                        'backup', 'resume-backup', 'restore', 'renew-certificate', 'activate', 'close', 'domain', 'mailbox', 'admin', 'upgrade', 'debug-on', 'debug-off', 'alert', 'fingerprint'])
+                        'backup', 'resume-backup', 'restore', 'renew-certificate', 'activate', 'close', 'domain', 'domain-enable', 'domain-disable', 'mailbox', 'admin', 'upgrade', 'debug-on', 'debug-off', 'alert', 'fingerprint'])
     parser.add_argument('--config', default='/etc/eric-mail/site.json')
     parser.add_argument('--secrets', default='/etc/eric-mail/secrets.json')
     parser.add_argument('--output')
@@ -902,6 +915,9 @@ def main():
                 require(args.evidence, '--evidence required'); activate(c, args.evidence)
             elif args.command == 'close':
                 with lock(): firewall(c, False)
+            elif args.command in ('domain-enable', 'domain-disable'):
+                require(args.domain, '--domain required')
+                domain_state(c, args.domain, args.command == 'domain-enable')
             elif args.command == 'domain':
                 require(args.domain, '--domain required')
                 require(args.domain in c['domains'], 'Add the domain through a reviewed config upgrade first')

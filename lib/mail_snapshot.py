@@ -17,7 +17,8 @@ def mailbox_snapshot(c):
     m.require(len(actual)==3 and Path(actual[0]).resolve()==source.resolve() and actual[1:]==[c['filesystem'],'/var/vmail'],'Mailbox must be a dedicated matching mounted LV')
     m.require(m.run(['lvs','--noheadings','-o','lv_attr',source]).strip().startswith('-'),'Only ordinary thick LVs are supported')
     created=False;mounted=False
-    with tempfile.TemporaryDirectory(prefix='mail-snapshot-',dir=m.STATE) as td:
+    td=tempfile.mkdtemp(prefix='mail-snapshot-',dir=m.STATE)
+    try:
         frozen=False
         try:
             try:
@@ -33,5 +34,10 @@ def mailbox_snapshot(c):
             usage=m.run(['lvs','--noheadings','-o','data_percent',device]).strip()
             m.require(usage and float(usage)<90,'Snapshot COW space exhausted or approaching exhaustion')
         finally:
-            if mounted:m.run(['umount',td])
+            if mounted:
+                m.run(['umount',td]);mounted=False
             if created:m.run(['lvremove','--yes',device])
+    finally:
+        # Never recursively remove a path that might still be mounted. An unmount
+        # failure leaves the mount/LV intact for deliberate operator recovery.
+        if not mounted:Path(td).rmdir()

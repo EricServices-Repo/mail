@@ -668,13 +668,19 @@ def backup(c, already_locked=False):
                 'fingerprint': fingerprint(c), 'release': Path('/opt/eric-mail/current').resolve().name,
                 'configuration_manifest': read_json(STATE / 'configuration-manifest.json'),
                 'created_at': time.time(), 'mail_source': mail_source, 'mail_target': '/var/vmail',
-                'queue_source': str(STATE / 'backup-stage/postfix-spool')}) + '\n')
+                'queue_source': str(STATE / 'backup-stage/postfix-spool'),
+                'security_state': {name: read_json(STATE/name) for name in
+                    ('dkim-selectors.json','content-security.json','security-checks.json',
+                     'dane-enabled.json','security-manifest.json','require-signatures.json') if (STATE/name).exists()}}) + '\n')
             replication_recovery = [str(p) for p in (*REPLICATION_RECOVERY, STATE / 'replication-primary.json') if p.exists()]
+            profile_manifest = STATE/'security-manifest.json'
+            profile_paths = [entry['path'] for entry in read_json(profile_manifest)] if profile_manifest.exists() else []
+            for path in profile_paths:path_value(path)
             report = run(['restic', 'backup', '--json', '--tag', 'eric-mail', mail_source, '/var/lib/rspamd/dkim',
                  '/var/lib/redis', '/var/lib/roundcube', '/var/lib/postfixadmin', str(ETC),
                  '/etc/postfix', '/etc/dovecot', '/etc/nginx', '/etc/php-fpm.d', '/etc/rspamd',
                  '/etc/letsencrypt', c['certificate'], c['private_key'], c['admin_client_ca'], c['admin_client_crl'],
-                 '/opt/eric-mail', str(STATE / 'backup-stage'), str(STATE / 'packages.txt'), *replication_recovery,
+                 '/opt/eric-mail', str(STATE / 'backup-stage'), str(STATE / 'packages.txt'), *replication_recovery, *profile_paths,
                  '--exclude', c['backup_environment'], '--exclude', env['RESTIC_PASSWORD_FILE']], env=env)
             summary = [json.loads(line) for line in report.splitlines() if line.strip()]
             snapshot_ids = [x['snapshot_id'] for x in summary if x.get('message_type') == 'summary' and x.get('snapshot_id')]
@@ -761,6 +767,7 @@ EVIDENCE = {'external_ipv4_relay_rejected', 'external_ipv6_relay_rejected', 'lan
 
 def activate(c, evidence):
     with lock():
+        require(not (STATE/'recovery-import-started').exists(),'Recovery import is incomplete; public activation denied')
         require(not (STATE / 'deployment-incomplete').exists(), 'Deployment is incomplete')
         state = read_json(STATE / 'installed.json')
         require(state['fingerprint'] == fingerprint(c), 'Config differs from installed configuration')

@@ -1,6 +1,33 @@
 # EricServices-Mail-Server
 
-Installation and operations tooling for a self-hosted, multi-domain mail server:
+**A Bash installer for a native, self-hosted, multi-domain mail server.** Run it
+on a prepared Rocky Linux host with `sudo bash install.sh`. It installs packages
+and systemd services directly; Docker is not required for deployment or runtime.
+Bash provides the installer entry point and command dispatch; Python 3.9+ is a
+dependency for the configuration and security helpers.
+
+## Quick start
+
+On a prepared Rocky Linux 9 host, choose either installation method:
+
+```bash
+# No JSON supplied: answer the installer questions.
+sudo bash install.sh
+
+# Existing JSON supplied: use its settings without prompts.
+sudo bash install.sh --config /root/site.json
+```
+
+You do not need to create `/root/site.json` before interactive installation. The
+Bash questionnaire collects and validates your answers, lets you choose where to
+save them (default `/root/site.json`), creates a private mode-`0600` JSON file, then
+starts installation. It never overwrites an existing file. Cancelling the
+questionnaire starts no deployment. Unattended installation requires `--config`.
+
+See [Installation](#installation) for prerequisites, configuration-only setup and
+repeat deployments.
+
+The installer configures:
 
 - **Dovecot** — IMAP access and local mail delivery.
 - **Postfix** — SMTP transport and authenticated submission.
@@ -94,29 +121,52 @@ legacy installations need a planned migration rather than an in-place rerun.
 git clone https://github.com/EricServices-Repo/mail.git
 cd mail
 # Select and verify the reviewed revision/release before running its scripts.
-cp config/site.example.json site.json
-chmod 600 site.json
+# For file-based configuration, copy config/site.example.json to a private site.json.
 ```
-
-Edit all site-specific fields, including domains, networks, certificates, archive
-paths/digests, backup environment and alert command. Preview the configuration:
-
-```bash
-./install.sh init-secrets --output secrets.json
-./install.sh render --config site.json --secrets secrets.json --output build
-```
-
-Rendering is offline. The preview secrets and generated output are private and
-must not be committed or copied over an established host's credentials.
 
 ### Deploy on the prepared host
 
-Transfer the reviewed release and site configuration to the target. With the
-configuration at `/root/site.json`, run:
+You can supply JSON or answer questions in the Bash installer.
+
+**Interactive installation — no JSON file required:**
 
 ```bash
-sudo ./install.sh deploy --config /root/site.json
+sudo bash install.sh
 ```
+
+The installer prompts for hostnames, domains, management networks, certificates,
+verified application archives/hashes, backups, alerts and limits. It validates each
+answer, lets you choose a configuration filename (default `/root/site.json`), saves
+it with mode `0600`, then starts deployment. Blank answers use displayed defaults;
+required values must be entered. Existing files are never overwritten. Ctrl-C or
+end-of-input cancels setup before deployment.
+
+Certificates, client CA/CRL, reviewed package repositories, application archives,
+backup access and the notification executable still need to be prepared; answering
+the questions does not create those external prerequisites. Passwords are generated
+by provisioning rather than requested in this questionnaire.
+
+**Installation with an existing JSON file — no prompts:**
+
+```bash
+sudo bash install.sh --config /root/site.json
+```
+
+For repeat deployments, explicitly pass the saved configuration, for example
+`sudo bash install.sh deploy --config /etc/eric-mail/site.json`. A missing or invalid
+explicit file is an error, not a request to silently switch to interactive setup.
+Unattended execution must supply `--config`; without a terminal it fails clearly.
+
+To collect and validate answers without installing anything:
+
+```bash
+bash install.sh configure --output "$PWD/site.json"
+```
+
+Choose a private, non-shared directory owned by the invoking user. Use
+`bash install.sh --help` to list commands, or
+`bash install.sh mailbox-mfa --help` for feature help. The complete checkout/release
+is required alongside `install.sh`.
 
 The installer generates persistent credentials under `/etc/eric-mail/`, installs
 its managed runtime under `/opt/eric-mail/current`, validates services and takes an
@@ -124,10 +174,25 @@ initial backup. Public ingress remains restricted pending acceptance evidence.
 The historical direct-download execution commands are superseded by this reviewed
 release workflow.
 
+### Optional: prepare or preview JSON before installation
+
+If using file-based configuration, copy `config/site.example.json` to `site.json`,
+set mode `0600`, and edit its site-specific fields. Interactive installation
+collects those settings for you instead. A prepared file can also be previewed offline:
+
+```bash
+bash install.sh init-secrets --output secrets.json
+bash install.sh render --config site.json --secrets secrets.json --output build
+```
+
+Rendering is offline. The preview secrets and generated output are private and
+must not be committed or copied over an established host's credentials.
+
 ## Variables and configuration
 
-Settings now live in [config/site.example.json](config/site.example.json), copied
-and edited as a private `site.json` file, rather than shell variables in the installer.
+Settings live in a private `site.json`, generated from the Bash questionnaire or
+copied and edited from [config/site.example.json](config/site.example.json), rather
+than shell variables in the installer.
 
 - `hostname` and `admin_hostname` select the mail/webmail and administration names.
 - `domains` lists hosted mail domains; `dkim_selector` selects the default signer.
@@ -147,9 +212,9 @@ have their own example policies and setup commands.
 Create administrative and required service mailboxes using the managed CLI:
 
 ```bash
-sudo /opt/eric-mail/current/install.sh admin --address operator@example.com
-sudo /opt/eric-mail/current/install.sh mailbox --address postmaster@example.com
-sudo /opt/eric-mail/current/install.sh mailbox --address abuse@example.com
+sudo bash /opt/eric-mail/current/install.sh admin --address operator@example.com
+sudo bash /opt/eric-mail/current/install.sh mailbox --address postmaster@example.com
+sudo bash /opt/eric-mail/current/install.sh mailbox --address abuse@example.com
 ```
 
 Use your own hosted domain. Enroll administrator TOTP and mailbox TOTP, issue device
@@ -157,8 +222,8 @@ credentials for mail clients, configure the security profiles, publish DNS and t
 external delivery. For example, mailbox enrollment is a root-only operation:
 
 ```bash
-sudo python3 /opt/eric-mail/current/lib/mail_auth.py enroll --address postmaster@example.com
-sudo python3 /opt/eric-mail/current/lib/mail_auth.py device --address postmaster@example.com --label 'Mail client'
+sudo bash /opt/eric-mail/current/install.sh mailbox-mfa enroll --address postmaster@example.com
+sudo bash /opt/eric-mail/current/install.sh mailbox-mfa device --address postmaster@example.com --label 'Mail client'
 ```
 
 Enrollment seeds, recovery codes and device passwords are displayed once. Deliver
@@ -171,7 +236,7 @@ configuration fingerprint, installed release hash and operator, and mark checks 
 only after execution. Then activate:
 
 ```bash
-sudo /opt/eric-mail/current/install.sh activate --evidence /root/release-evidence.json
+sudo bash /opt/eric-mail/current/install.sh activate --evidence /root/release-evidence.json
 ```
 
 Acceptance includes relay rejection, MFA/revocation, scanner outage/quarantine,
@@ -198,9 +263,9 @@ POP3, cleartext IMAP and optional port 465 are disabled by the managed configura
 The original `debugmail` / `undebugmail` helpers are replaced by managed commands:
 
 ```bash
-sudo /opt/eric-mail/current/install.sh health
-sudo /opt/eric-mail/current/install.sh debug-on
-sudo /opt/eric-mail/current/install.sh debug-off
+sudo bash /opt/eric-mail/current/install.sh health
+sudo bash /opt/eric-mail/current/install.sh debug-on
+sudo bash /opt/eric-mail/current/install.sh debug-off
 ```
 
 Diagnostic logging expires automatically and password logging remains disabled.
@@ -227,7 +292,8 @@ Python 3.9+, PHP CLI and ShellCheck are required for local release checks:
 ./tests/check.sh
 ```
 
-GitHub CI also runs an isolated MariaDB replication integration test. Disposable
+GitHub CI uses Docker only for an isolated MariaDB replication integration test.
+This test does not build or deploy a mail-server container image. Disposable
 host scenarios are manually dispatched against an explicitly configured lab runner;
 they must never target production. See [implementation status](docs/IMPLEMENTATION.md)
 and the feature-specific acceptance guides for validation boundaries.

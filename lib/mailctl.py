@@ -483,7 +483,7 @@ def validate(c):
 
 
 def source_paths():
-    return [ROOT / 'install.sh'] + sorted((ROOT / 'lib').glob('*.py')) + sorted((ROOT / 'templates').glob('*'))
+    return [ROOT / 'install.sh', ROOT / 'config/site.example.json'] + sorted((ROOT / 'lib').glob('*.py')) + sorted((ROOT / 'templates').glob('*'))
 
 
 def source_digest():

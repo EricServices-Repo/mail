@@ -177,8 +177,8 @@ release workflow.
 ### Optional: prepare or preview JSON before installation
 
 If using file-based configuration, copy `config/site.example.json` to `site.json`,
-set mode `0600`, and edit its site-specific fields. Interactive installation below
-collects those settings for you. A prepared file can also be previewed offline:
+set mode `0600`, and edit its site-specific fields. Interactive installation
+collects those settings for you instead. A prepared file can also be previewed offline:
 
 ```bash
 bash install.sh init-secrets --output secrets.json

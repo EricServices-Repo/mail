@@ -15,6 +15,12 @@ Watch authentication failures, outbound bursts and filter rejects in logs/your c
 
 The baseline integrates spam and domain-authentication filtering, not an antivirus engine. If attachment malware scanning is required, connect a maintained, resource-bounded ClamAV service through Rspamd, keep signatures current, define scanner failure as deferral, and verify EICAR/archive-limit tests on staging. Do not describe attachments as safe solely because they were scanned.
 
+## Certificate renewal and live identity checks
+
+`renew-certificate` validates the chain, both configured DNS names and key match before touching services. It acquires the operation lock, reloads Nginx, restarts Postfix and Dovecot (fresh mail processes were required by issues #12/#16/#18), then checks health. It refuses to start deliberately stopped services or run during an incomplete deployment. Sharing the backup lock prevents certificate hooks from restarting writers during a consistent backup.
+
+Health compares live HTTPS, IMAPS and submission leaf fingerprints against the configured fullchain. A valid but stale certificate is unhealthy even before it expires. A hook failure, including lock contention, requires investigation and an explicit retry after maintenance (`install.sh renew-certificate`); an ACME success alone does not prove every listener loaded the new certificate. The local tests use real certificates to verify both accepted and rejected names and key mismatch, and check that failed validation causes no restart.
+
 ## Updates
 
 Assign an owner to OS, PHP, Roundcube, PostfixAdmin, Composer dependencies, Rspamd and signing-key advisories. Triage critical exposures immediately; target a tested critical fix within 24 hours. Verify distribution backports and update reviewed version floors. The toolkit has no mutable remote self-update and no automatic application downgrade.

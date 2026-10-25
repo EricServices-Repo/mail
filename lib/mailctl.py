@@ -321,19 +321,46 @@ def certificate_check(c):
         st = Path(p).stat()
         require(st.st_uid == 0 and not st.st_mode & 0o022, 'Certificate files must be root-owned and not writable by others')
     require(not Path(c['private_key']).stat().st_mode & 0o077, 'TLS private key must be root-only')
-    for name in (c['hostname'], c['admin_hostname']):
-        run(['openssl', 'x509', '-in', c['certificate'], '-noout', '-checkhost', name])
-    run(['openssl', 'x509', '-in', c['certificate'], '-noout', '-checkend', '1209600'])
-    run(['openssl', 'verify', '-CAfile', '/etc/pki/tls/certs/ca-bundle.crt',
-         '-untrusted', c['certificate'], c['certificate']])
-    pub_cert = run(['openssl', 'x509', '-in', c['certificate'], '-pubkey', '-noout'])
-    pub_key = run(['openssl', 'pkey', '-in', c['private_key'], '-pubout'])
-    require(pub_cert == pub_key, 'Certificate and private key do not match')
+    verify_server_certificate(c)
     run(['openssl', 'crl', '-in', c['admin_client_crl'], '-noout', '-verify', '-CAfile', c['admin_client_ca']])
     expiry = run(['openssl', 'crl', '-in', c['admin_client_crl'], '-noout', '-nextupdate']).strip().split('=', 1)[-1]
     expires_at = dt.datetime.strptime(expiry, '%b %d %H:%M:%S %Y %Z').replace(tzinfo=dt.timezone.utc).timestamp()
     require(expires_at > time.time() + 86400, 'Admin client CRL must remain valid for at least one day')
 
+
+
+def verify_server_certificate(c, ca_bundle='/etc/pki/tls/certs/ca-bundle.crt'):
+    # x509 -checkhost may print a mismatch but return success. verify_hostname
+    # participates in chain validation and fails the command on wrong identities.
+    for name in (c['hostname'], c['admin_hostname']):
+        run(['openssl', 'verify', '-purpose', 'sslserver', '-CAfile', ca_bundle,
+             '-untrusted', c['certificate'], '-verify_hostname', name, c['certificate']])
+    run(['openssl', 'x509', '-in', c['certificate'], '-noout', '-checkend', '1209600'])
+    pub_cert = run(['openssl', 'x509', '-in', c['certificate'], '-pubkey', '-noout'])
+    pub_key = run(['openssl', 'pkey', '-in', c['private_key'], '-pubout'])
+    require(pub_cert == pub_key, 'Certificate and private key do not match')
+
+
+def certificate_fingerprint(path):
+    content = Path(path).read_text()
+    match = re.search(r'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', content, re.S)
+    require(match is not None, 'No leaf certificate found in fullchain')
+    return hashlib.sha256(ssl.PEM_cert_to_DER_cert(match[0])).hexdigest()
+
+
+def renew_certificate(c):
+    # The same lock protects backup consistency: no writer restarts during a snapshot.
+    with lock():
+        require(not (STATE / 'deployment-incomplete').exists(), 'Deployment is incomplete')
+        require(read_json(STATE / 'installed.json')['fingerprint'] == fingerprint(c), 'Renewal config differs from installed state')
+        validate(c)
+        for service in ('nginx', 'postfix', 'dovecot'):
+            require(subprocess.run(['systemctl', 'is-active', '--quiet', service]).returncode == 0,
+                    'Renewal refuses to start a deliberately stopped service')
+        run(['systemctl', 'reload', 'nginx'])
+        # Existing issues #12/#16/#18 require fresh mail processes after renewal.
+        run(['systemctl', 'restart', 'postfix', 'dovecot'])
+        health(c)
 
 def archive_check(path, expected):
     require(Path(path).is_file() and digest(path) == expected, 'Application archive SHA-256 mismatch')
@@ -658,8 +685,8 @@ def resume_backup():
 def tls_probe(host, port):
     ctx = ssl.create_default_context()
     with socket.create_connection((host, port), timeout=10) as sock:
-        with ctx.wrap_socket(sock, server_hostname=host):
-            pass
+        with ctx.wrap_socket(sock, server_hostname=host) as tls:
+            return hashlib.sha256(tls.getpeercert(binary_form=True)).hexdigest()
 
 
 def health(c, require_backup=True, allow_maintenance=False):
@@ -676,12 +703,16 @@ def health(c, require_backup=True, allow_maintenance=False):
             failures.append('storage:' + path)
     try:
         certificate_check(c)
-        tls_probe(c['hostname'], 993)
+        expected = certificate_fingerprint(c['certificate'])
+        require(tls_probe(c['hostname'], 993) == expected, 'IMAPS is serving a stale certificate')
+        require(tls_probe(c['hostname'], 443) == expected, 'HTTPS is serving a stale certificate')
         with smtplib.SMTP(c['hostname'], 587, timeout=10) as smtp:
             smtp.ehlo()
             require('auth' not in smtp.esmtp_features, 'AUTH advertised before TLS')
             smtp.starttls(context=ssl.create_default_context()); smtp.ehlo()
             require('auth' in smtp.esmtp_features, 'Submission AUTH missing')
+            require(hashlib.sha256(smtp.sock.getpeercert(binary_form=True)).hexdigest() == expected,
+                    'Submission is serving a stale certificate')
         authlog = run(['journalctl', '--no-pager', '-n', '5000', '--since=-5min', '-u', 'postfix', '-u', 'dovecot'])
         if len(re.findall(r'authentication failed|auth failed|Login failed', authlog, re.I)) >= 100:
             failures.append('authentication-failure-spike')
@@ -826,7 +857,7 @@ def main():
     signal.signal(signal.SIGTERM, terminate)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init-secrets', 'render', 'deploy', 'validate', 'health',
-                        'backup', 'resume-backup', 'restore', 'activate', 'close', 'domain', 'mailbox', 'admin', 'upgrade', 'debug-on', 'debug-off', 'alert', 'fingerprint'])
+                        'backup', 'resume-backup', 'restore', 'renew-certificate', 'activate', 'close', 'domain', 'mailbox', 'admin', 'upgrade', 'debug-on', 'debug-off', 'alert', 'fingerprint'])
     parser.add_argument('--config', default='/etc/eric-mail/site.json')
     parser.add_argument('--secrets', default='/etc/eric-mail/secrets.json')
     parser.add_argument('--output')
@@ -857,6 +888,7 @@ def main():
             elif args.command in ('mailbox', 'admin'):
                 require(args.address, '--address required'); create_identity(c, args.address, args.command)
             elif args.command == 'validate': validate(c)
+            elif args.command == 'renew-certificate': renew_certificate(c)
             elif args.command == 'health': health(c, allow_maintenance=True)
             elif args.command == 'backup': backup(c)
             elif args.command == 'resume-backup':
